@@ -3,6 +3,10 @@
 #include "HVCommon.h"
 #include "vmcs.h"
 #include "msr.h"
+#include "instrinsics.h"
+#include "VMX.h"
+
+void VmExit_funcs_init();
 
 typedef void (*VMCallback)(
 	__inout ULONG_PTR reg[REG_COUNT], 

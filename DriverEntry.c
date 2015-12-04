@@ -19,7 +19,13 @@ DriverEntry(
     KAFFINITY ActiveProcessors, t;
     ULONG i = 0;
 
-    KdPrint(("[HyperVisor] DriverEntry~\n"));
+    KdPrint(("\n[HyperVisor] DriverEntry~\n"));
+
+    if (!__Support_VMX())
+    {
+        KdPrint(("No Support VMX!\n"));
+        return STATUS_UNSUCCESSFUL;
+    }
 
 	//pDriverObject->DriverUnload = DriverUnload;
 
@@ -27,6 +33,8 @@ DriverEntry(
 
     while (sum_cpu--)
     {
+        #define MAX_PROCID (sizeof(ULONG) << 3)
+
         for ( ; i < MAX_PROCID; i++ )
         {
             t = ActiveProcessors & (1<<i);

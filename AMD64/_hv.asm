@@ -4,15 +4,9 @@ include .\common.inc
 
 .code
 
-__hv_rdmsr proc
-	rdmsr
+__hv_null proc
 	vmresume
-__hv_rdmsr endp
-
-__hv_wrmsr proc
-	wrmsr
-	vmresume
-__hv_wrmsr endp
+__hv_null endp
 
 __hv_cpuid proc	
 	cpuid
@@ -24,10 +18,6 @@ __hv_invd proc
 	vmresume
 __hv_invd endp
 
-__hv_vmcall proc
-	vmresume
-__hv_vmcall endp
-
 __hv_rdtsc proc
 	;rdtsc
 	push rcx
@@ -37,10 +27,15 @@ __hv_rdtsc proc
 	vmresume
 __hv_rdtsc endp
 
-__hv_resume proc
+__hv_rdmsr proc
+	rdmsr
 	vmresume
-__hv_resume endp
+__hv_rdmsr endp
 
+__hv_wrmsr proc
+	wrmsr
+	vmresume
+__hv_wrmsr endp
 
 hv_exit proc
 

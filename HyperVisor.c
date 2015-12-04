@@ -1,35 +1,34 @@
 
 #include "HyperVisor.h"
 
-VMTrap g_VmExit_funcs[MAX_HV_CALLBACK];
-
 //////////////////////////////////////////////////////////////////////
 
+extern void __hv_cpuid();
 extern void __hv_invd();
+extern void __hv_rdtsc();
 extern void __hv_rdmsr();
 extern void __hv_wrmsr();
-extern void __hv_cpuid();
-extern void __hv_crx();
-extern void __hv_resume();
-extern void __hv_vmcall();
-extern void __hv_rdtsc();
 
-void 
-fakeRDMSR( 
-          __inout ULONG_PTR reg[0x10] 
-);
+extern void __hv_null();
+VMTrap g_VmExit_funcs[MAX_HV_CALLBACK] = {__hv_null};
 
 //////////////////////////////////////////////////////////////////////
 
-void CHyperVisor()
+void fakeRDMSR( __inout ULONG_PTR reg[REG_COUNT] );
+
+void VmExit_funcs_init()
 {
-    g_VmExit_funcs[VMX_EXIT_VMCALL] = __hv_vmcall;
-    g_VmExit_funcs[VMX_EXIT_RDMSR]  = __hv_rdmsr;
-    g_VmExit_funcs[VMX_EXIT_WRMSR]  = __hv_wrmsr;
-    g_VmExit_funcs[VMX_EXIT_INVD]   = __hv_invd;
-    g_VmExit_funcs[VMX_EXIT_CPUID]  = __hv_cpuid;
-    g_VmExit_funcs[VMX_EXIT_RDTSC]  = __hv_rdtsc;
-    g_VmExit_funcs[VMX_EXIT_RDMSR]  = fakeRDMSR;
+    static int Vmfuncs_inited = 0;
+    if (!Vmfuncs_inited)
+    {
+        Vmfuncs_inited = 1;
+        g_VmExit_funcs[VMX_EXIT_CPUID]  = __hv_cpuid;
+        g_VmExit_funcs[VMX_EXIT_INVD]   = __hv_invd;
+        g_VmExit_funcs[VMX_EXIT_RDTSC]  = __hv_rdtsc;
+        g_VmExit_funcs[VMX_EXIT_CRX_MOVE] = HandleCrxAccess;
+        g_VmExit_funcs[VMX_EXIT_RDMSR]  = fakeRDMSR;
+        g_VmExit_funcs[VMX_EXIT_WRMSR]  = __hv_wrmsr;
+    }
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -44,7 +43,6 @@ HVEntryPoint(
 	ULONG_PTR ExitReason;
     ULONG_PTR ExitInstructionLength;
     ULONG_PTR GuestEIP;
-    ULONG_PTR GuestRFLAGS;
     
     status = __vmx_vmread(VMX_VMCS32_RO_EXIT_REASON, &ExitReason);
 
@@ -54,14 +52,12 @@ HVEntryPoint(
 
     if((ExitReason > VMX_EXIT_VMCALL) && (ExitReason <= VMX_EXIT_VMXON))
     {
+        ULONG_PTR GuestRFLAGS;
         status = __vmx_vmread(VMX_VMCS_GUEST_RFLAGS, &GuestRFLAGS);
         status = __vmx_vmwrite(VMX_VMCS_GUEST_RFLAGS, GuestRFLAGS & (~0x8d5) | 0x1);
     }
 
-    if (VMX_EXIT_CRX_MOVE == ExitReason)
-        HandleCrxAccess(reg);
-
-    return g_VmExit_funcs[ExitReason];
+    return g_VmExit_funcs[ExitReason](reg);
 }
 
 void
@@ -72,10 +68,11 @@ HandleCrxAccess(
 	EVmErrors status;
 	ULONG_PTR ExitQualification;
 
-    status = __vmx_vmread(VMX_VMCS_RO_EXIT_QUALIFICATION, &ExitQualification);  if (status) return;
+    status = __vmx_vmread(VMX_VMCS_RO_EXIT_QUALIFICATION, &ExitQualification);
+        if (status) return;
 
 	{
-		ULONG_PTR cr = (ExitQualification & 0x0000000F);
+		ULONG_PTR cr      = (ExitQualification & 0x0000000F);
 		ULONG_PTR operand = (ExitQualification & 0x00000040) >> 6;
 
 		if (3 == cr && 0 == operand)
@@ -89,17 +86,17 @@ HandleCrxAccess(
 
 			if (1 == acess)
 			{
-				ULONG_PTR cr3 = Instrinsics::VmRead(VMX_VMCS64_GUEST_CR3, &status);
+				ULONG_PTR cr3 = VmRead(VMX_VMCS64_GUEST_CR3, &status);
 				if (VM_OK(status))
 					reg[r64] = cr3;
 			}
 			else if (0 == acess)
 			{
-				(void)Instrinsics::VmWrite(VMX_VMCS64_GUEST_CR3, reg[r64]);
+				VmWrite(VMX_VMCS64_GUEST_CR3, reg[r64]);
 
 				//handle pagefault via VMX_EXIT_EPT_VIOLATION
-				(void)Instrinsics::VmWrite(VMX_VMCS_CTRL_EPTP_FULL, reg[r64]);
-				(void)Instrinsics::VmWrite(VMX_VMCS_CTRL_EPTP_HIGH, reg[r64] >> 32);
+				VmWrite(VMX_VMCS_CTRL_EPTP_FULL, reg[r64]);
+				VmWrite(VMX_VMCS_CTRL_EPTP_HIGH, reg[r64] >> 32);
 			}
 		}
 	}
@@ -107,29 +104,13 @@ HandleCrxAccess(
 
 void 
 fakeRDMSR( 
-          __inout ULONG_PTR reg[0x10] 
-)
+    __inout ULONG_PTR reg[REG_COUNT]
+    )
 {
     ULONG_PTR syscall;
     if (IA64_SYSENTER_EIP == reg[RCX])
     {
-        syscall = (ULONG_PTR)CSysCall::GetSysCall(CVirtualizedCpu::GetCoreId(reg));
-
-        EVmErrors status;
-        ULONG_PTR ins_len = Instrinsics::VmRead(VMX_VMCS32_RO_EXIT_INSTR_LENGTH, &status);
-        if (VM_OK(status))
-        {
-            ULONG_PTR eip = Instrinsics::VmRead(VMX_VMCS64_GUEST_RIP, &status);
-            if (VM_OK(status))
-            {
-                status = Instrinsics::VmWrite(VMX_VMCS64_GUEST_RIP, (ULONG_PTR)rdmsr_hook);//rdmsr_hook is trampolie to RdmsrHook
-                if (VM_OK(status))
-                {
-                    reg[RCX] = eip;
-                    m_sRdmsrRips.Push(reg[RCX] - ins_len);
-                }
-            }
-        }
+        syscall = g_guestState.SEIP;
     }
     else
     {

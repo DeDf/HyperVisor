@@ -22,21 +22,21 @@ public:
 		m_intInfo(0)
 	{
 		EVmErrors status;
-		m_intInfo = Instrinsics::VmRead(VMX_VMCS32_RO_EXIT_INTERRUPTION_INFO, &status);
+		m_intInfo = VmRead(VMX_VMCS32_RO_EXIT_INTERRUPTION_INFO, &status);
 		if (VM_OK(status))
 		{
-			m_ip = reinterpret_cast<void*>(Instrinsics::VmRead(VMX_VMCS64_GUEST_RIP, &status));
+			m_ip = reinterpret_cast<void*>(VmRead(VMX_VMCS64_GUEST_RIP, &status));
 			if (VM_OK(status))
 			{
-				m_sp = reinterpret_cast<ULONG_PTR*>(Instrinsics::VmRead(VMX_VMCS64_GUEST_RSP, &status));
+				m_sp = (ULONG_PTR*)VmRead(VMX_VMCS64_GUEST_RSP, &status);
 				if (VM_OK(status))
 				{
-					m_flags = Instrinsics::VmRead(VMX_VMCS_GUEST_RFLAGS, &status);
+					m_flags = VmRead(VMX_VMCS_GUEST_RFLAGS, &status);
 					if (VM_OK(status))
 					{
-						m_reason = Instrinsics::VmRead(VMX_VMCS32_RO_EXIT_REASON, &status);
+						m_reason = VmRead(VMX_VMCS32_RO_EXIT_REASON, &status);
 						if (VM_OK(status))
-							m_insLen = Instrinsics::VmRead(VMX_VMCS32_RO_EXIT_INSTR_LENGTH, &status);
+							m_insLen = VmRead(VMX_VMCS32_RO_EXIT_INSTR_LENGTH, &status);
 					}
 				}
 			}
@@ -46,9 +46,9 @@ public:
 	__forceinline
 	~CVMMAutoExit()
 	{
-		NT_ASSERT(VM_OK(Instrinsics::VmWrite(VMX_VMCS64_GUEST_RIP, m_ip)));
-		NT_ASSERT(VM_OK(Instrinsics::VmWrite(VMX_VMCS_GUEST_RFLAGS, m_flags)));
-		NT_ASSERT(VM_OK(Instrinsics::VmWrite(VMX_VMCS64_GUEST_RSP, m_sp)));
+		NT_ASSERT(VM_OK(VmWrite(VMX_VMCS64_GUEST_RIP, m_ip)));
+		NT_ASSERT(VM_OK(VmWrite(VMX_VMCS_GUEST_RFLAGS, m_flags)));
+		NT_ASSERT(VM_OK(VmWrite(VMX_VMCS64_GUEST_RSP, m_sp)));
 	}
 
 	__forceinline
@@ -82,7 +82,7 @@ public:
 		__in const void* ip
 		)
 	{
-		m_ip = static_cast<const BYTE*>(ip) - m_insLen;
+		m_ip = static_cast<const UCHAR*>(ip) - m_insLen;
 	}
 
 	__forceinline
@@ -112,9 +112,9 @@ public:
 	}
 
 	__forceinline
-	BYTE GetInterruptionInfo()
+	UCHAR GetInterruptionInfo()
 	{
-		return static_cast<BYTE>(m_intInfo);
+		return static_cast<UCHAR>(m_intInfo);
 	}
 
 	__forceinline

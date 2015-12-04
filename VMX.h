@@ -2,19 +2,31 @@
 
 #include "HVCommon.h"
 
+extern GUEST_STATE	g_guestState;
+
+extern BOOLEAN __Support_VMX();
+
+extern
+void
+__fastcall
+get_guest_exit(
+               __out ULONG_PTR* guestRip,
+               __out ULONG_PTR* guestRsp
+               );
+
 void GetGuestState();
 BOOLEAN VmcsInit();
 
 void 
 GetSegmentDescriptor(
-                     __out SEGMENT_SELECTOR* segSel, 
-                     __in ULONG_PTR selector
+                     OUT SEGMENT_SELECTOR* segSel, 
+                     ULONG_PTR selector
                      );
 
 UCHAR
 SetSegSelector(
-               __in ULONG_PTR segSelector,
-               __in ULONG_PTR segField
+               ULONG_PTR segSelector,
+               ULONG_PTR segField
                );
 
 UCHAR

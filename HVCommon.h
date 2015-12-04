@@ -4,16 +4,13 @@
 
 #pragma pack(push, 1)
 
-typedef unsigned short WORD;
-typedef unsigned long DWORD;
-
 typedef struct _GATE_DESCRIPTOR
 {
-	WORD Offset;
-	DWORD Access;
-	WORD Selector;
-	DWORD ExtendedOffset;
-	DWORD Reserved;
+	USHORT Offset;
+	ULONG Access;
+	USHORT Selector;
+	ULONG ExtendedOffset;
+	ULONG Reserved;
 } GATE_DESCRIPTOR;
 
 typedef struct SEGMENT_DESCRIPTOR
@@ -49,7 +46,7 @@ typedef union
 typedef struct _SEGMENT_SELECTOR
 {
 	ULONG_PTR selector;
-	DWORD limit;
+	ULONG limit;
 	ULONG_PTR base;
 	ULONG_PTR rights;
 	USHORT attributes;
@@ -57,7 +54,7 @@ typedef struct _SEGMENT_SELECTOR
 
 typedef struct _GDT
 {
-	WORD limit;
+	USHORT limit;
 	ULONG_PTR base;
 } GDT;
 
@@ -69,29 +66,31 @@ typedef struct _GUEST_STATE
 	void* VMCS;
     void* hvStack;
     //
-	ULONG_PTR PIN;
-	ULONG_PTR PROC;
-	ULONG_PTR EXIT;
-	ULONG_PTR ENTRY;
-	ULONG_PTR SEIP;
-	ULONG_PTR SESP;
+    ULONG_PTR CR3;
+    ULONG_PTR CR0;
+    ULONG_PTR CR4;
     //
+    ULONG_PTR RFLAGS;
+    //
+    ULONG_PTR Cs;
+    ULONG_PTR Ds;
+    ULONG_PTR Es;
+    ULONG_PTR Ss;
+    ULONG_PTR Fs;
+    ULONG_PTR Gs;
 	ULONG_PTR Ldtr;
 	ULONG_PTR Tr;
-	ULONG_PTR Gs;
-	ULONG_PTR Fs;
-	ULONG_PTR Ss;
-	ULONG_PTR Es;
-	ULONG_PTR Ds;
-	ULONG_PTR Cs;
-    //
-	ULONG_PTR CR4;
-	ULONG_PTR CR3;
-	ULONG_PTR CR0;
-	ULONG_PTR RFLAGS;
     //
     GDT Gdtr;
     GDT Idtr;
+    //
+    ULONG_PTR PIN;
+    ULONG_PTR PROC;
+    ULONG_PTR EXIT;
+    ULONG_PTR ENTRY;
+    ULONG_PTR SEIP;
+    ULONG_PTR SESP;
+    //
 } GUEST_STATE;
 
 #define QWORD_LIMIT		    0xFFFFFFFFFFFFFFFF
@@ -131,13 +130,11 @@ enum
 	G_SS
 };
 
-#define MAX_PROCID (sizeof(ULONG) << 3) //*8 .. byte => 8bite
-
 #define MAKEFOURCC(ch0, ch1, ch2, ch3)  \
-	((DWORD)(BYTE)(ch0)        |  \
-    ((DWORD)(BYTE)(ch1) << 8)  |  \
-	((DWORD)(BYTE)(ch2) << 16) |  \
-    ((DWORD)(BYTE)(ch3) << 24))
+	((ULONG)(UCHAR)(ch0)        |  \
+    ((ULONG)(UCHAR)(ch1) << 8)  |  \
+	((ULONG)(UCHAR)(ch2) << 16) |  \
+    ((ULONG)(UCHAR)(ch3) << 24))
 
 #define kCpuidMark	MAKEFOURCC('P', 'I', 'L', 'L')
 #define kStackMark	MAKEFOURCC('C', 'O', 'L', 'D')
