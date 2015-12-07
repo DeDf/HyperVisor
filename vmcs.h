@@ -1,3 +1,6 @@
+
+#pragma once
+
 //http://virtualbox-ose.sourcearchive.com/documentation/3.0.10-dfsg-1/group__grp__vmx_g4b5627423dbd6f41ff320a95c7754f47.html
 
 //VMX_EXIT_QUALIFICATION_APIC_ACCESS_TYPE; access types
@@ -50,58 +53,64 @@
 #define 	VMX_ERROR_VMXON_IN_VMX_ROOT_OP   15
 
 //VMX Basic Exit Reasons.
-#define 	VMX_EXIT_APIC_ACCESS   44
-#define 	VMX_EXIT_CPUID   10
-#define 	VMX_EXIT_CRX_MOVE   28
-#define 	VMX_EXIT_DRX_MOVE   29
-#define 	VMX_EXIT_EPT_MISCONFIG   49
-#define 	VMX_EXIT_EPT_VIOLATION   48
-#define 	VMX_EXIT_ERR_INVALID_GUEST_STATE   33
-#define 	VMX_EXIT_ERR_MACHINE_CHECK   41
-#define 	VMX_EXIT_ERR_MSR_LOAD   34
-#define 	VMX_EXIT_EXCEPTION   0
+#define 	VMX_EXIT_INVALID        -1
+#define 	VMX_EXIT_EXCEPTION      0
 #define 	VMX_EXIT_EXTERNAL_IRQ   1
-#define 	VMX_EXIT_HLT   12
-#define 	VMX_EXIT_INIT_SIGNAL   3
-#define 	VMX_EXIT_INVALID   -1
-#define 	VMX_EXIT_INVD   13
-#define 	VMX_EXIT_INVEPT   50
-#define 	VMX_EXIT_INVPG   14
-#define 	VMX_EXIT_INVVPID   53
-#define 	VMX_EXIT_IO_SMI_IRQ   5
-#define 	VMX_EXIT_IRQ_WINDOW   7
-#define 	VMX_EXIT_MONITOR   39
-#define 	VMX_EXIT_MWAIT   36
-#define 	VMX_EXIT_PAUSE   40
-#define 	VMX_EXIT_PORT_IO   30
-#define 	VMX_EXIT_PREEMPTION_TIMER   52
-#define 	VMX_EXIT_RDMSR   31
-#define 	VMX_EXIT_RDPMC   15
-#define 	VMX_EXIT_RDTSC   16
-#define 	VMX_EXIT_RSM   17
-#define 	VMX_EXIT_SIPI   4
-#define 	VMX_EXIT_SMI_IRQ   6
-#define 	VMX_EXIT_TASK_SWITCH   9
-#define 	VMX_EXIT_TPR   43
-#define 	VMX_EXIT_TR_ACCESS   47
 #define 	VMX_EXIT_TRIPLE_FAULT   2
-#define 	VMX_EXIT_VMCALL   18
-#define 	VMX_EXIT_VMCLEAR   19
-#define 	VMX_EXIT_VMLAUNCH   20
-#define 	VMX_EXIT_VMPTRLD   21
-#define 	VMX_EXIT_VMPTRST   22
-#define 	VMX_EXIT_VMREAD   23
-#define 	VMX_EXIT_VMRESUME   24
-#define 	VMX_EXIT_VMWRITE   25
-#define 	VMX_EXIT_VMXOFF   26
-#define 	VMX_EXIT_VMXON   27
-#define 	VMX_EXIT_WBINVD   54
-#define 	VMX_EXIT_WRMSR   32
-#define 	VMX_EXIT_XDTR_ACCESS   46
-#define 	VMX_EXIT_XSETBV   55
+#define 	VMX_EXIT_INIT_SIGNAL    3
+#define 	VMX_EXIT_SIPI           4
+#define 	VMX_EXIT_IO_SMI_IRQ     5
+#define 	VMX_EXIT_SMI_IRQ        6
+#define 	VMX_EXIT_IRQ_WINDOW     7
+
+#define 	VMX_EXIT_TASK_SWITCH    9
+#define 	VMX_EXIT_CPUID          10
+
+#define 	VMX_EXIT_HLT            12
+#define 	VMX_EXIT_INVD           13
+#define 	VMX_EXIT_INVPG          14
+#define 	VMX_EXIT_RDPMC          15
+#define 	VMX_EXIT_RDTSC          16
+#define 	VMX_EXIT_RSM            17
+#define 	VMX_EXIT_VMCALL         18
+#define 	VMX_EXIT_VMCLEAR        19
+#define 	VMX_EXIT_VMLAUNCH       20
+#define 	VMX_EXIT_VMPTRLD        21
+#define 	VMX_EXIT_VMPTRST        22
+#define 	VMX_EXIT_VMREAD         23
+#define 	VMX_EXIT_VMRESUME       24
+#define 	VMX_EXIT_VMWRITE        25
+#define 	VMX_EXIT_VMXOFF         26
+#define 	VMX_EXIT_VMXON          27
+#define 	VMX_EXIT_CRX_MOVE       28
+#define 	VMX_EXIT_DRX_MOVE       29
+#define 	VMX_EXIT_PORT_IO        30
+#define 	VMX_EXIT_RDMSR          31
+#define 	VMX_EXIT_WRMSR          32
+#define 	VMX_EXIT_ERR_INVALID_GUEST_STATE   33
+#define 	VMX_EXIT_ERR_MSR_LOAD   34
+
+#define 	VMX_EXIT_MWAIT          36
+
+#define 	VMX_EXIT_MONITOR        39
+#define 	VMX_EXIT_PAUSE          40
+#define 	VMX_EXIT_ERR_MACHINE_CHECK   41
+
+#define 	VMX_EXIT_TPR            43
+#define 	VMX_EXIT_APIC_ACCESS    44
+
+#define 	VMX_EXIT_XDTR_ACCESS    46
+#define 	VMX_EXIT_TR_ACCESS      47
+#define 	VMX_EXIT_EPT_VIOLATION  48
+#define 	VMX_EXIT_EPT_MISCONFIG  49
+#define 	VMX_EXIT_INVEPT         50
+
+#define 	VMX_EXIT_PREEMPTION_TIMER   52
+#define 	VMX_EXIT_INVVPID        53
+#define 	VMX_EXIT_WBINVD         54
+#define 	VMX_EXIT_XSETBV         55
 
 //VMCS field encoding - 16 bits guest fields
-
 #define 	VMX_VMCS16_GUEST_FIELD_ES   0x800
 #define 	VMX_VMCS16_GUEST_FIELD_CS   0x802
 #define 	VMX_VMCS16_GUEST_FIELD_SS   0x804
@@ -346,13 +355,13 @@
 #define X86_CR4_MCE		0x0040	/* Machine check enable */
 #define X86_CR4_PGE		0x0080	/* enable global pages */
 #define X86_CR4_PCE		0x0100	/* enable performance counters at ipl 3 */
-#define X86_CR4_OSFXSR		0x0200	/* enable fast FPU save and restore */
-#define X86_CR4_OSXMMEXCPT	0x0400	/* enable unmasked SSE exceptions */
-#define X86_CR4_VMXE		0x2000  /* enable VMX */
-#define X86_CR4_SMXE		0x4000  /* enable SMX */
-#define X86_CR4_FSGSBASE	0x10000 /* enable {rd,wr}{fs,gs}base */
-#define X86_CR4_OSXSAVE	0x40000 /* enable XSAVE/XRSTOR */
-#define X86_CR4_SMEP		0x100000/* enable SMEP */
+#define X86_CR4_OSFXSR		  0x0200  /* enable fast FPU save and restore */
+#define X86_CR4_OSXMMEXCPT	  0x0400  /* enable unmasked SSE exceptions */
+#define X86_CR4_VMXE		  0x2000  /* enable VMX */
+#define X86_CR4_SMXE		  0x4000  /* enable SMX */
+#define X86_CR4_FSGSBASE	 0x10000  /* enable {rd,wr}{fs,gs}base */
+#define X86_CR4_OSXSAVE	     0x40000  /* enable XSAVE/XRSTOR */
+#define X86_CR4_SMEP		0x100000  /* enable SMEP */
 
 /*
  * Trap/fault mnemonics.

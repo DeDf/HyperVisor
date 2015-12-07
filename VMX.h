@@ -1,6 +1,10 @@
 #pragma once
 
 #include "HVCommon.h"
+#include "HyperVisor.h"
+#include "instrinsics.h"
+#include "msr.h"
+#include "vmcs.h"
 
 extern GUEST_STATE	g_guestState;
 
@@ -28,6 +32,9 @@ SetSegSelector(
                ULONG_PTR segSelector,
                ULONG_PTR segField
                );
+
+UCHAR
+SetSegSelectors();
 
 UCHAR
 SetCRx();

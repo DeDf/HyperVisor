@@ -6,7 +6,7 @@
 extern void __hv_cpuid();
 extern void __hv_invd();
 extern void __hv_rdtsc();
-extern void __hv_rdmsr();
+extern ULONG_PTR __hv_rdmsr();
 extern void __hv_wrmsr();
 
 extern void __hv_null();
@@ -57,7 +57,9 @@ HVEntryPoint(
         status = __vmx_vmwrite(VMX_VMCS_GUEST_RFLAGS, GuestRFLAGS & (~0x8d5) | 0x1);
     }
 
-    return g_VmExit_funcs[ExitReason](reg);
+    g_VmExit_funcs[ExitReason](reg);
+
+    return status;
 }
 
 void
@@ -65,7 +67,7 @@ HandleCrxAccess(
 	__inout ULONG_PTR reg[REG_COUNT] 
 	)
 {
-	EVmErrors status;
+	UCHAR status;
 	ULONG_PTR ExitQualification;
 
     status = __vmx_vmread(VMX_VMCS_RO_EXIT_QUALIFICATION, &ExitQualification);
@@ -86,17 +88,18 @@ HandleCrxAccess(
 
 			if (1 == acess)
 			{
-				ULONG_PTR cr3 = VmRead(VMX_VMCS64_GUEST_CR3, &status);
-				if (VM_OK(status))
+				ULONG_PTR cr3;
+                status = __vmx_vmread(VMX_VMCS64_GUEST_CR3, &cr3);
+				if (!status)
 					reg[r64] = cr3;
 			}
 			else if (0 == acess)
 			{
-				VmWrite(VMX_VMCS64_GUEST_CR3, reg[r64]);
+				__vmx_vmwrite(VMX_VMCS64_GUEST_CR3, reg[r64]);
 
 				//handle pagefault via VMX_EXIT_EPT_VIOLATION
-				VmWrite(VMX_VMCS_CTRL_EPTP_FULL, reg[r64]);
-				VmWrite(VMX_VMCS_CTRL_EPTP_HIGH, reg[r64] >> 32);
+				__vmx_vmwrite(VMX_VMCS_CTRL_EPTP_FULL, reg[r64]);
+				__vmx_vmwrite(VMX_VMCS_CTRL_EPTP_HIGH, reg[r64] >> 32);
 			}
 		}
 	}

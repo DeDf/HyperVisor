@@ -23,40 +23,4 @@
  ULONG_PTR __xchgds(__inout ULONG_PTR* ds);
  ULONG_PTR __writeds(__in ULONG_PTR ds);
 
-enum EVmErrors
-{
-	VM_ERROR_OK = 0,
-	VM_ERROR_ERR_INFO_OK,
-	VM_ERROR_ERR_INFO_ERR,
-};
-
-#define VM_OK(status)    (status == EVmErrors::VM_ERROR_OK)
-	
-__forceinline
-ULONG_PTR VmRead(
-                 IN size_t field,
-                 OUT EVmErrors *err
-                 )
-{
-    size_t val;
-    EVmErrors _err = (EVmErrors)__vmx_vmread(field, &val);
-
-    if (err)
-        *err = _err;
-
-    NT_ASSERT(VM_OK(_err));
-    return (ULONG_PTR)val;
-}
-
-__forceinline
-EVmErrors VmWrite(
-                  IN size_t field, 
-                  OUT ULONG_PTR val 
-                  )
-{
-    EVmErrors err = (EVmErrors)__vmx_vmwrite(field, val);
-    NT_ASSERT(VM_OK(err));
-    return err;
-}
-
 #endif //__INSTRINSICS_H__

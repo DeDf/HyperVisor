@@ -1,3 +1,6 @@
+
+#pragma once
+
 /* MSRs */
 #define IA32_FEATURE_CONTROL_CODE               0x03A
 #define IA32_SYSENTER_CS                        0x174

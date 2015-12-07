@@ -1,6 +1,5 @@
 
 #include "VMX.h"
-#include "msr.h"
 
 GUEST_STATE	g_guestState;
 
@@ -11,6 +10,9 @@ extern void  hv_exit();
 void
 GetGuestState()  // done!
 {
+    PHYSICAL_ADDRESS PhysicalAddress;
+    PhysicalAddress.QuadPart = 0xFFFFFFFF00000000;
+
     g_guestState.CR0 = __readcr0() & __readmsr(IA32_VMX_CR0_FIXED1) | __readmsr(IA32_VMX_CR0_FIXED0) | CR0_PE | CR0_NE | CR0_PG;
     g_guestState.CR3 = __readcr3();
     g_guestState.CR4 = __readcr4() & __readmsr(IA32_VMX_CR4_FIXED1) | __readmsr(IA32_VMX_CR4_FIXED0) | CR4_VMXE | CR4_DE;
@@ -43,7 +45,7 @@ GetGuestState()  // done!
     RtlZeroMemory(g_guestState.VMCS,  PAGE_SIZE);
 
     g_guestState.hvStack =        // 分配的是非页面内存，且保证在物理内存中是连续的,MmFreeContiguousMemory
-        MmAllocateContiguousMemory(HYPERVISOR_STACK_PAGE, (PHYSICAL_ADDRESS)0xFFFFFFFF00000000);
+        MmAllocateContiguousMemory(HYPERVISOR_STACK_PAGE, PhysicalAddress);
     RtlZeroMemory(g_guestState.hvStack, HYPERVISOR_STACK_PAGE);
 }
 
@@ -82,15 +84,15 @@ VmcsInit()
     __writecr4(g_guestState.CR4);
     __sti();
 
-	*(ULONG_PTR)(g_guestState.VMCS)  = __readmsr(IA32_VMX_BASIC_MSR_CODE);
-	*(ULONG_PTR)(g_guestState.VMXON) = __readmsr(IA32_VMX_BASIC_MSR_CODE);
+	*(PULONG_PTR)(g_guestState.VMCS)  = __readmsr(IA32_VMX_BASIC_MSR_CODE);
+	*(PULONG_PTR)(g_guestState.VMXON) = __readmsr(IA32_VMX_BASIC_MSR_CODE);
 
     addr = MmGetPhysicalAddress(g_guestState.VMXON);
-	__vmx_on(addr);
+	__vmx_on(&addr);
 
     addr = MmGetPhysicalAddress(g_guestState.VMCS);
-	__vmx_vmclear(addr);
-	__vmx_vmptrld(addr);
+	__vmx_vmclear(&addr);
+	__vmx_vmptrld(&addr);
 
 	//GLOBALS
 	status = __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_MSR_LOAD_COUNT, 0);  if (status) return FALSE;
@@ -117,8 +119,8 @@ VmcsInit()
     status = __vmx_vmwrite(VMX_VMCS64_GUEST_RIP, guest_rip);             if (status) return FALSE;
     status = __vmx_vmwrite(VMX_VMCS_GUEST_RFLAGS, g_guestState.RFLAGS);  if (status) return FALSE;
 
-	status = __vmx_vmwrite(VMX_VMCS_HOST_RSP, g_guestState.hvStack + PAGE_SIZE - 1);  if (status) return FALSE;
-	status = __vmx_vmwrite(VMX_VMCS_HOST_RIP, hv_exit);                               if (status) return FALSE;
+	status = __vmx_vmwrite(VMX_VMCS_HOST_RSP, (ULONG_PTR)g_guestState.hvStack + PAGE_SIZE - 1);  if (status) return FALSE;
+	status = __vmx_vmwrite(VMX_VMCS_HOST_RIP, hv_exit);                  if (status) return FALSE;
 	
 	if (m_exceptionMask)
 	{
@@ -243,13 +245,13 @@ SetSysCall()  // done!
 	UCHAR status;
 	CS_STAR cs = { __readmsr(IA32_STAR) };
 
-    status = __vmx_vmwrite(VMX_VMCS32_GUEST_SYSENTER_CS,  cs.SyscallCs & QWORD_LIMIT)    if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS64_GUEST_SYSENTER_ESP, (ULONG_PTR)g_guestState.SESP)  if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS64_GUEST_SYSENTER_EIP, (ULONG_PTR)g_guestState.SEIP)  if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS32_GUEST_SYSENTER_CS,  cs.SyscallCs & QWORD_LIMIT);    if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS64_GUEST_SYSENTER_ESP, (ULONG_PTR)g_guestState.SESP);  if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS64_GUEST_SYSENTER_EIP, (ULONG_PTR)g_guestState.SEIP);  if (status) return status;
 
-    status = __vmx_vmwrite(VMX_VMCS32_HOST_SYSENTER_CS,   cs.SyscallCs & QWORD_LIMIT)    if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS_HOST_SYSENTER_EIP,    (ULONG_PTR)g_guestState.SEIP)  if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS_HOST_SYSENTER_ESP,    (ULONG_PTR)g_guestState.SESP)  if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS32_HOST_SYSENTER_CS,   cs.SyscallCs & QWORD_LIMIT);    if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS_HOST_SYSENTER_EIP,    (ULONG_PTR)g_guestState.SEIP);  if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS_HOST_SYSENTER_ESP,    (ULONG_PTR)g_guestState.SESP);  if (status) return status;
 
 	return status;
 }
@@ -291,10 +293,10 @@ SetSegSelector(  // done!
 	SEGMENT_SELECTOR seg_sel;
 	GetSegmentDescriptor(&seg_sel, Selector);
 
-    status = __vmx_vmwrite(VMX_VMCS16_GUEST_FIELD_ES         + i, Selector)        if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS64_GUEST_ES_BASE          + i, seg_sel.base)    if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS32_GUEST_ES_LIMIT         + i, seg_sel.limit)   if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS32_GUEST_ES_ACCESS_RIGHTS + i, seg_sel.rights)  if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_GUEST_FIELD_ES         + i, Selector);        if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS64_GUEST_ES_BASE          + i, seg_sel.base);    if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS32_GUEST_ES_LIMIT         + i, seg_sel.limit);   if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS32_GUEST_ES_ACCESS_RIGHTS + i, seg_sel.rights);  if (status) return status;
 	
 	return status;
 }
@@ -305,23 +307,23 @@ SetSegSelectors()  // done!
     UCHAR status;
 
     //SELECTORS
-    status = SetSegSelector(g_guestState.Cs, VMX_VMCS16_GUEST_FIELD_CS)     if (status) return status;
-    status = SetSegSelector(g_guestState.Ds, VMX_VMCS16_GUEST_FIELD_DS)     if (status) return status;
-    status = SetSegSelector(g_guestState.Es, VMX_VMCS16_GUEST_FIELD_ES)     if (status) return status;
-    status = SetSegSelector(g_guestState.Ss, VMX_VMCS16_GUEST_FIELD_SS)     if (status) return status;
-    status = SetSegSelector(g_guestState.Fs, VMX_VMCS16_GUEST_FIELD_FS)     if (status) return status;
-    status = SetSegSelector(g_guestState.Gs, VMX_VMCS16_GUEST_FIELD_GS)     if (status) return status;
-    status = SetSegSelector(g_guestState.Ldtr, VMX_VMCS16_GUEST_FIELD_LDTR) if (status) return status;
-    status = SetSegSelector(g_guestState.Tr, VMX_VMCS16_GUEST_FIELD_TR)     if (status) return status;
+    status = SetSegSelector(g_guestState.Cs, VMX_VMCS16_GUEST_FIELD_CS);     if (status) return status;
+    status = SetSegSelector(g_guestState.Ds, VMX_VMCS16_GUEST_FIELD_DS);     if (status) return status;
+    status = SetSegSelector(g_guestState.Es, VMX_VMCS16_GUEST_FIELD_ES);     if (status) return status;
+    status = SetSegSelector(g_guestState.Ss, VMX_VMCS16_GUEST_FIELD_SS);     if (status) return status;
+    status = SetSegSelector(g_guestState.Fs, VMX_VMCS16_GUEST_FIELD_FS);     if (status) return status;
+    status = SetSegSelector(g_guestState.Gs, VMX_VMCS16_GUEST_FIELD_GS);     if (status) return status;
+    status = SetSegSelector(g_guestState.Ldtr, VMX_VMCS16_GUEST_FIELD_LDTR); if (status) return status;
+    status = SetSegSelector(g_guestState.Tr, VMX_VMCS16_GUEST_FIELD_TR);     if (status) return status;
 
     //HOST
-    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_CS, g_guestState.Cs)         if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_DS, SEG_DATA)                if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_ES, SEG_DATA)                if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_SS, g_guestState.Ss)         if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_FS, g_guestState.Fs & 0xf8)  if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_GS, g_guestState.Gs & 0xf8)  if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_TR, g_guestState.Tr)         if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_CS, g_guestState.Cs);         if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_DS, SEG_DATA);                if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_ES, SEG_DATA);                if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_SS, g_guestState.Ss);         if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_FS, g_guestState.Fs & 0xf8);  if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_GS, g_guestState.Gs & 0xf8);  if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_TR, g_guestState.Tr);         if (status) return status;
 
     // VMWRITE_ERR_QUIT(VMX_VMCS_HOST_FS_BASE, __readmsr(IA32_FS_BASE) & SEG_Q_LIMIT);
 

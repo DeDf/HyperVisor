@@ -4,7 +4,6 @@ TARGETTYPE=DRIVER
 
 AMD64_SOURCES=_hv.asm \
               _instrinsics.asm \
-              _syscall.asm \
               _vmx.asm
         
 SOURCES=DriverEntry.c \

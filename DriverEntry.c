@@ -37,7 +37,7 @@ DriverEntry(
 
         for ( ; i < MAX_PROCID; i++ )
         {
-            t = ActiveProcessors & (1<<i);
+            t = ActiveProcessors & (((ULONG_PTR)1)<<i);
             if (t)
             {
                 KeSetSystemAffinityThreadEx(t);  // KeSetSystemAffinityThreadEx >= vista
