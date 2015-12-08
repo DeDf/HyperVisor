@@ -222,10 +222,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\VmmAutoExit.h"
-				>
-			</File>
-			<File
 				RelativePath=".\VMX.h"
 				>
 			</File>
