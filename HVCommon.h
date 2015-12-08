@@ -104,7 +104,7 @@ typedef struct _GUEST_STATE
 #define NORMAL					0x10
 #define	IS_GRANULARITY_4KB		0xB
 
-#define BTS(b)					(1 << b)
+#define BTS(b)					(1i64 << b)
 
 #define CR4_VMXE				BTS(13)
 #define CR4_DE					BTS(3)
