@@ -58,6 +58,7 @@ VmcsInit()
     //
     ULONG_PTR guest_rsp;
     ULONG_PTR guest_rip;
+    ULONG_PTR VMCS_revision_id;
 
     get_guest_exit(&guest_rsp, &guest_rip);  // 获取上层的下一条指令
 
@@ -84,15 +85,16 @@ VmcsInit()
     __writecr4(g_guestState.CR4);
     __sti();
 
-	*(PULONG_PTR)(g_guestState.VMCS)  = __readmsr(IA32_VMX_BASIC_MSR_CODE);
-	*(PULONG_PTR)(g_guestState.VMXON) = __readmsr(IA32_VMX_BASIC_MSR_CODE);
+    VMCS_revision_id = __readmsr(IA32_VMX_BASIC_MSR_CODE) & 0xffffffff;
+	*(PULONG_PTR)(g_guestState.VMCS)  = VMCS_revision_id;
+	*(PULONG_PTR)(g_guestState.VMXON) = VMCS_revision_id;
 
     addr = MmGetPhysicalAddress(g_guestState.VMXON);
-	__vmx_on(&addr);
+	status = __vmx_on(&addr);
 
     addr = MmGetPhysicalAddress(g_guestState.VMCS);
-	__vmx_vmclear(&addr);
-	__vmx_vmptrld(&addr);
+	status = __vmx_vmclear(&addr);
+	status = __vmx_vmptrld(&addr);
 
 	//GLOBALS
 	status = __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_MSR_LOAD_COUNT, 0);  if (status) return FALSE;
