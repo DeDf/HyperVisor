@@ -114,16 +114,13 @@ VmcsInit()
 	status = __vmx_vmwrite(VMX_VMCS_GUEST_DEBUGCTL_FULL, __readmsr(IA32_DEBUGCTL));        if (status) return FALSE;
 	status = __vmx_vmwrite(VMX_VMCS_GUEST_DEBUGCTL_HIGH, __readmsr(IA32_DEBUGCTL) >> 32);  if (status) return FALSE;
 
-// 	status = __vmx_vmwrite(VMX_VMCS64_GUEST_FS_BASE, __readmsr(IA32_FS_BASE));  if (status) return FALSE;
-// 	status = __vmx_vmwrite(VMX_VMCS64_GUEST_GS_BASE, __readmsr(IA32_GS_BASE));  if (status) return FALSE;
-
     status = __vmx_vmwrite(VMX_VMCS64_GUEST_RSP, guest_rsp);             if (status) return FALSE;
     status = __vmx_vmwrite(VMX_VMCS64_GUEST_RIP, guest_rip);             if (status) return FALSE;
     status = __vmx_vmwrite(VMX_VMCS_GUEST_RFLAGS, g_guestState.RFLAGS);  if (status) return FALSE;
 
 	status = __vmx_vmwrite(VMX_VMCS_HOST_RSP, (ULONG_PTR)g_guestState.hvStack + PAGE_SIZE - 1);  if (status) return FALSE;
 	status = __vmx_vmwrite(VMX_VMCS_HOST_RIP, hv_exit);                  if (status) return FALSE;
-	
+
 	if (m_exceptionMask)
 	{
 		ULONG_PTR val_state;
@@ -169,7 +166,7 @@ VmcsInit()
 	DbgPrint("\nldtr %p", g_guestState.Ldtr);
 	DbgPrint("\ntr  %p", g_guestState.Tr);
 
-	__vmx_vmlaunch();
+	status = __vmx_vmlaunch();
 
 	DbgPrint("\nHYPERVISOR IS NOT TURNED ON, something failed!\n");
 	__debugbreak();
@@ -326,8 +323,6 @@ SetSegSelectors()  // done!
     status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_FS, g_guestState.Fs & 0xf8);  if (status) return status;
     status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_GS, g_guestState.Gs & 0xf8);  if (status) return status;
     status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_TR, g_guestState.Tr);         if (status) return status;
-
-    // VMWRITE_ERR_QUIT(VMX_VMCS_HOST_FS_BASE, __readmsr(IA32_FS_BASE) & SEG_Q_LIMIT);
 
     return status;
 }
