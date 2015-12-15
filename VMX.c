@@ -10,8 +10,8 @@ extern void  hv_exit();
 void
 GetGuestState()  // done!
 {
-    PHYSICAL_ADDRESS PhysicalAddress;
-    PhysicalAddress.QuadPart = 0xFFFFFFFF00000000;
+    PHYSICAL_ADDRESS HighestAcceptableAddress;
+    HighestAcceptableAddress.QuadPart = 0xFFFFFFFF00000000;
 
     g_guestState.CR0 = __readcr0() & __readmsr(IA32_VMX_CR0_FIXED1) | __readmsr(IA32_VMX_CR0_FIXED0) | CR0_PE | CR0_NE | CR0_PG;
     g_guestState.CR3 = __readcr3();
@@ -45,7 +45,7 @@ GetGuestState()  // done!
     RtlZeroMemory(g_guestState.VMCS,  PAGE_SIZE);
 
     g_guestState.hvStack =        // 分配的是非页面内存，且保证在物理内存中是连续的,MmFreeContiguousMemory
-        MmAllocateContiguousMemory(HYPERVISOR_STACK_PAGE, PhysicalAddress);
+        MmAllocateContiguousMemory(HYPERVISOR_STACK_PAGE, HighestAcceptableAddress);
     RtlZeroMemory(g_guestState.hvStack, HYPERVISOR_STACK_PAGE);
 }
 
@@ -53,30 +53,34 @@ BOOLEAN
 VmcsInit()
 {
     UCHAR status;
-    ULONG_PTR m_exceptionMask = 0;
     PHYSICAL_ADDRESS addr;
     //
+    ULONG_PTR m_exceptionMask = 0;
     ULONG_PTR guest_rsp;
     ULONG_PTR guest_rip;
     ULONG_PTR VMCS_revision_id;
 
-    get_guest_exit(&guest_rsp, &guest_rip);  // 获取上层的下一条指令
-
     // 检查IA32_FEATURE_CONTROL寄存器的两个Lock位
 	if (!(__readmsr(IA32_FEATURE_CONTROL_CODE) & FEATURE_CONTROL_VMXON_ENABLED))
     {
-        DbgPrint("IA32_FEATURE_CONTROL bit[2] = 0!\n");
+        KdPrint(("[HyperVisor] IA32_FEATURE_CONTROL bit[2] = 0!\n"));
         return FALSE;
     }
 
     if (!(__readmsr(IA32_FEATURE_CONTROL_CODE) & FEATURE_CONTROL_LOCKED))
     {
-        DbgPrint("IA32_FEATURE_CONTROL bit[0] = 0!\n");
+        KdPrint(("[HyperVisor] IA32_FEATURE_CONTROL bit[0] = 0!\n"));
         return FALSE;
     }
 
-    DbgPrint(" Virtualization is enabled\n"
-             "    exceptionMask : 0x%x, RSP:%p, RIP:%p \n", m_exceptionMask, guest_rsp, guest_rip);
+    get_guest_exit(&guest_rsp, &guest_rip);  // 获取上层的下一条指令
+
+    KdPrint(("[HyperVisor] exceptionMask : 0x%x, RSP:%p, RIP:%p \n", m_exceptionMask, guest_rsp, guest_rip));
+
+    VMCS_revision_id = __readmsr(IA32_VMX_BASIC_MSR_CODE) & 0xffffffff;
+    *(PULONG_PTR)(g_guestState.VMCS)  = VMCS_revision_id;
+    *(PULONG_PTR)(g_guestState.VMXON) = VMCS_revision_id;
+    KdPrint(("[HyperVisor] VMCS_revision_id : 0x%x\n", VMCS_revision_id));
 
     VmExit_funcs_init();
 
@@ -84,10 +88,6 @@ VmcsInit()
     __writecr0(g_guestState.CR0);
     __writecr4(g_guestState.CR4);
     __sti();
-
-    VMCS_revision_id = __readmsr(IA32_VMX_BASIC_MSR_CODE) & 0xffffffff;
-	*(PULONG_PTR)(g_guestState.VMCS)  = VMCS_revision_id;
-	*(PULONG_PTR)(g_guestState.VMXON) = VMCS_revision_id;
 
     addr = MmGetPhysicalAddress(g_guestState.VMXON);
 	status = __vmx_on(&addr);
@@ -142,33 +142,34 @@ VmcsInit()
 
 	//handle pagefault via VMX_EXIT_EPT_VIOLATION
 	/*
-	VMWRITE_ERR_QUIT(VMX_VMCS_CTRL_EPTP_FULL, m_guestState.CR3 | VMX_EPT_MEMTYPE_WB | (VMX_EPT_PAGE_WALK_LENGTH_DEFAULT << VMX_EPT_PAGE_WALK_LENGTH_SHIFT));
+	VMWRITE_ERR_QUIT(VMX_VMCS_CTRL_EPTP_FULL, m_guestState.CR3 | VMX_EPT_MEMTYPE_WB | \
+                    (VMX_EPT_PAGE_WALK_LENGTH_DEFAULT << VMX_EPT_PAGE_WALK_LENGTH_SHIFT));
 	VMWRITE_ERR_QUIT(VMX_VMCS_CTRL_EPTP_HIGH, m_guestState.CR3 >> 32);
 	*/
 
-	DbgPrint("\ncr0 %p", g_guestState.CR0);	
-	DbgPrint("\ncr3 %p", g_guestState.CR3);
-	DbgPrint("\ncr4 %p", g_guestState.CR4);
-
-	//descriptor tables
-	DbgPrint("\nidtr base %p",  g_guestState.Idtr.base);
-	DbgPrint("\nidtr limit %p", g_guestState.Idtr.limit);
-	DbgPrint("\ngdtr base %p",  g_guestState.Gdtr.base);
-	DbgPrint("\ngdtr limit %p", g_guestState.Gdtr.limit);
-
-	//SELECTORS
-	DbgPrint("\ncs  %p", g_guestState.Cs);
-	DbgPrint("\nds  %p", g_guestState.Ds);
-	DbgPrint("\nes  %p", g_guestState.Es);
-	DbgPrint("\nss  %p", g_guestState.Ss);	
-	DbgPrint("\nfs  %p", g_guestState.Fs);
-	DbgPrint("\ngs  %p", g_guestState.Gs);	
-	DbgPrint("\nldtr %p", g_guestState.Ldtr);
-	DbgPrint("\ntr  %p", g_guestState.Tr);
+// 	DbgPrint("\ncr0 %p", g_guestState.CR0);	
+// 	DbgPrint("\ncr3 %p", g_guestState.CR3);
+// 	DbgPrint("\ncr4 %p", g_guestState.CR4);
+// 
+// 	//descriptor tables
+// 	DbgPrint("\nidtr base %p",  g_guestState.Idtr.base);
+// 	DbgPrint("\nidtr limit %p", g_guestState.Idtr.limit);
+// 	DbgPrint("\ngdtr base %p",  g_guestState.Gdtr.base);
+// 	DbgPrint("\ngdtr limit %p", g_guestState.Gdtr.limit);
+// 
+// 	//SELECTORS
+// 	DbgPrint("\ncs  %p", g_guestState.Cs);
+// 	DbgPrint("\nds  %p", g_guestState.Ds);
+// 	DbgPrint("\nes  %p", g_guestState.Es);
+// 	DbgPrint("\nss  %p", g_guestState.Ss);	
+// 	DbgPrint("\nfs  %p", g_guestState.Fs);
+// 	DbgPrint("\ngs  %p", g_guestState.Gs);	
+// 	DbgPrint("\nldtr %p", g_guestState.Ldtr);
+// 	DbgPrint("\ntr  %p", g_guestState.Tr);
 
 	status = __vmx_vmlaunch();
 
-	DbgPrint("\nHYPERVISOR IS NOT TURNED ON, something failed!\n");
+	DbgPrint("[HyperVisor] vmlaunch failed!\n");
 	__debugbreak();
 	return FALSE;
 }

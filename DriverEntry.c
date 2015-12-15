@@ -23,7 +23,7 @@ DriverEntry(
 
     if (!__Support_VMX())
     {
-        KdPrint(("No Support VMX!\n"));
+        KdPrint(("[HyperVisor] No Support VMX!\n"));
         return STATUS_UNSUCCESSFUL;
     }
 
