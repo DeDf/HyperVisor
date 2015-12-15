@@ -77,7 +77,7 @@ VmcsInit()
 
     KdPrint(("[HyperVisor] exceptionMask : 0x%x, RSP:%p, RIP:%p \n", m_exceptionMask, guest_rsp, guest_rip));
 
-    VMCS_revision_id = __readmsr(IA32_VMX_BASIC_MSR_CODE) & 0xffffffff;
+    VMCS_revision_id = __readmsr(IA32_VMX_BASIC_MSR_CODE);
     *(PULONG_PTR)(g_guestState.VMCS)  = VMCS_revision_id;
     *(PULONG_PTR)(g_guestState.VMXON) = VMCS_revision_id;
     KdPrint(("[HyperVisor] VMCS_revision_id : 0x%x\n", VMCS_revision_id));
