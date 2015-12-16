@@ -17,6 +17,8 @@ DriverEntry(
 {
     ULONG sum_cpu;
     KAFFINITY ActiveProcessors, t;
+    ULONG_PTR guest_rsp;
+    ULONG_PTR guest_rip;
     ULONG i = 0;
 
     KdPrint(("\n[HyperVisor] DriverEntry~\n"));
@@ -42,7 +44,8 @@ DriverEntry(
             {
                 KeSetSystemAffinityThreadEx(t);  // KeSetSystemAffinityThreadEx >= vista
                 GetGuestState();
-                VmcsInit();
+                get_guest_exit(&guest_rsp, &guest_rip);  // 获取VmcsInit的下一条指令
+                VmcsInit(guest_rsp, guest_rip);
                 break;
             }
         }

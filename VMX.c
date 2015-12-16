@@ -50,34 +50,30 @@ GetGuestState()  // done!
 }
 
 BOOLEAN
-VmcsInit()
+VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
 {
     UCHAR status;
     PHYSICAL_ADDRESS addr;
     //
     ULONG_PTR m_exceptionMask = 0;
-    ULONG_PTR guest_rsp;
-    ULONG_PTR guest_rip;
     ULONG_PTR VMCS_revision_id;
 
     // 检查IA32_FEATURE_CONTROL寄存器的两个Lock位
-	if (!(__readmsr(IA32_FEATURE_CONTROL_CODE) & FEATURE_CONTROL_VMXON_ENABLED))
-    {
-        KdPrint(("[HyperVisor] IA32_FEATURE_CONTROL bit[2] = 0!\n"));
-        return FALSE;
-    }
-
     if (!(__readmsr(IA32_FEATURE_CONTROL_CODE) & FEATURE_CONTROL_LOCKED))
     {
         KdPrint(("[HyperVisor] IA32_FEATURE_CONTROL bit[0] = 0!\n"));
         return FALSE;
     }
 
-    get_guest_exit(&guest_rsp, &guest_rip);  // 获取上层的下一条指令
+	if (!(__readmsr(IA32_FEATURE_CONTROL_CODE) & FEATURE_CONTROL_VMXON_ENABLED))
+    {
+        KdPrint(("[HyperVisor] IA32_FEATURE_CONTROL bit[2] = 0!\n"));
+        return FALSE;
+    }
 
     KdPrint(("[HyperVisor] exceptionMask : 0x%x, RSP:%p, RIP:%p \n", m_exceptionMask, guest_rsp, guest_rip));
 
-    VMCS_revision_id = __readmsr(IA32_VMX_BASIC_MSR_CODE);
+    VMCS_revision_id = __readmsr(IA32_VMX_BASIC_MSR_CODE) & 0xffffffff;
     *(PULONG_PTR)(g_guestState.VMCS)  = VMCS_revision_id;
     *(PULONG_PTR)(g_guestState.VMXON) = VMCS_revision_id;
     KdPrint(("[HyperVisor] VMCS_revision_id : 0x%x\n", VMCS_revision_id));
@@ -147,25 +143,25 @@ VmcsInit()
 	VMWRITE_ERR_QUIT(VMX_VMCS_CTRL_EPTP_HIGH, m_guestState.CR3 >> 32);
 	*/
 
-// 	DbgPrint("\ncr0 %p", g_guestState.CR0);	
-// 	DbgPrint("\ncr3 %p", g_guestState.CR3);
-// 	DbgPrint("\ncr4 %p", g_guestState.CR4);
-// 
-// 	//descriptor tables
-// 	DbgPrint("\nidtr base %p",  g_guestState.Idtr.base);
-// 	DbgPrint("\nidtr limit %p", g_guestState.Idtr.limit);
-// 	DbgPrint("\ngdtr base %p",  g_guestState.Gdtr.base);
-// 	DbgPrint("\ngdtr limit %p", g_guestState.Gdtr.limit);
-// 
-// 	//SELECTORS
-// 	DbgPrint("\ncs  %p", g_guestState.Cs);
-// 	DbgPrint("\nds  %p", g_guestState.Ds);
-// 	DbgPrint("\nes  %p", g_guestState.Es);
-// 	DbgPrint("\nss  %p", g_guestState.Ss);	
-// 	DbgPrint("\nfs  %p", g_guestState.Fs);
-// 	DbgPrint("\ngs  %p", g_guestState.Gs);	
-// 	DbgPrint("\nldtr %p", g_guestState.Ldtr);
-// 	DbgPrint("\ntr  %p", g_guestState.Tr);
+	DbgPrint("\ncr0 %p", g_guestState.CR0);	
+	DbgPrint("\ncr3 %p", g_guestState.CR3);
+	DbgPrint("\ncr4 %p", g_guestState.CR4);
+
+	//descriptor tables
+	DbgPrint("\nidtr base %p",  g_guestState.Idtr.base);
+	DbgPrint("\nidtr limit %p", g_guestState.Idtr.limit);
+	DbgPrint("\ngdtr base %p",  g_guestState.Gdtr.base);
+	DbgPrint("\ngdtr limit %p", g_guestState.Gdtr.limit);
+
+	//SELECTORS
+	DbgPrint("\ncs  %p", g_guestState.Cs);
+	DbgPrint("\nds  %p", g_guestState.Ds);
+	DbgPrint("\nes  %p", g_guestState.Es);
+	DbgPrint("\nss  %p", g_guestState.Ss);	
+	DbgPrint("\nfs  %p", g_guestState.Fs);
+	DbgPrint("\ngs  %p", g_guestState.Gs);	
+	DbgPrint("\nldtr %p", g_guestState.Ldtr);
+	DbgPrint("\ntr  %p", g_guestState.Tr);
 
 	status = __vmx_vmlaunch();
 

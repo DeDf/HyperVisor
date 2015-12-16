@@ -12,14 +12,13 @@ extern BOOLEAN __Support_VMX();
 
 extern
 void
-__fastcall
 get_guest_exit(
                __out ULONG_PTR* guestRip,
                __out ULONG_PTR* guestRsp
                );
 
 void GetGuestState();
-BOOLEAN VmcsInit();
+BOOLEAN VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip);
 
 void 
 GetSegmentDescriptor(
