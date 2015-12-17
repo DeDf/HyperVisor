@@ -313,13 +313,13 @@ SetSegSelectors()  // done!
     status = SetSegSelector(g_guestState.Tr, VMX_VMCS16_GUEST_FIELD_TR);     if (status) return status;
 
     //HOST
-    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_CS, g_guestState.Cs);         if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_DS, SEG_DATA);                if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_ES, SEG_DATA);                if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_SS, g_guestState.Ss);         if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_CS, SEG_CODE);              if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_DS, SEG_DATA);              if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_ES, SEG_DATA);              if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_SS, SEG_DATA);              if (status) return status;
     status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_FS, g_guestState.Fs & 0xf8);  if (status) return status;
     status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_GS, g_guestState.Gs & 0xf8);  if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_TR, g_guestState.Tr);         if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_TR, g_guestState.Tr & 0xf8);  if (status) return status;
 
     return status;
 }

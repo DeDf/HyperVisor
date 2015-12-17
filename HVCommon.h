@@ -98,8 +98,8 @@ typedef struct _GUEST_STATE
 
 #define HYPERVISOR_STACK_PAGE	(PAGE_SIZE * 2)
 
-#define SEG_DATA				0x10
-#define SEG_CODE				0x18
+#define SEG_CODE				0x10
+#define SEG_DATA				0x18
 
 #define NORMAL					0x10
 #define	IS_GRANULARITY_4KB		0xB
