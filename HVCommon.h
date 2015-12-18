@@ -67,8 +67,6 @@ typedef struct _GUEST_STATE
     void* hvStack;
     //
     ULONG_PTR CR3;
-    ULONG_PTR CR0;
-    ULONG_PTR CR4;
     //
     ULONG_PTR RFLAGS;
     //
@@ -105,12 +103,7 @@ typedef struct _GUEST_STATE
 #define	IS_GRANULARITY_4KB		0xB
 
 #define BTS(b)					(1i64 << b)
-
 #define CR4_VMXE				BTS(13)
-#define CR4_DE					BTS(3)
-#define CR0_PG					BTS(31)
-#define CR0_NE					BTS(5)
-#define CR0_PE					BTS(0)
 
 #define FEATURE_CONTROL_LOCKED			BTS(0)
 #define FEATURE_CONTROL_VMXON_ENABLED	BTS(2)

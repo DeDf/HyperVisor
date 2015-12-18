@@ -39,9 +39,6 @@ UCHAR
 SetCRx();
 
 UCHAR
-SetControls();
-
-UCHAR
 SetDT();
 
 UCHAR

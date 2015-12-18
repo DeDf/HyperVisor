@@ -13,10 +13,7 @@ GetGuestState()  // done!
     PHYSICAL_ADDRESS HighestAcceptableAddress;
     HighestAcceptableAddress.QuadPart = 0xFFFFFFFF00000000;
 
-    g_guestState.CR0 = __readcr0() & __readmsr(IA32_VMX_CR0_FIXED1) | __readmsr(IA32_VMX_CR0_FIXED0) | CR0_PE | CR0_NE | CR0_PG;
     g_guestState.CR3 = __readcr3();
-    g_guestState.CR4 = __readcr4() & __readmsr(IA32_VMX_CR4_FIXED1) | __readmsr(IA32_VMX_CR4_FIXED0) | CR4_VMXE | CR4_DE;
-
     g_guestState.RFLAGS = __readeflags();
 
     g_guestState.Cs = __readcs();
@@ -49,6 +46,19 @@ GetGuestState()  // done!
     RtlZeroMemory(g_guestState.hvStack, HYPERVISOR_STACK_PAGE);
 }
 
+ULONG32 VmxAdjustControls (
+                           ULONG32 Ctl,
+                           ULONG32 Msr
+                           )
+{
+    LARGE_INTEGER MsrValue;
+
+    MsrValue.QuadPart = __readmsr (Msr);
+    Ctl &= MsrValue.HighPart;     /* bit == 0 in high word ==> must be zero */
+    Ctl |= MsrValue.LowPart;      /* bit == 1 in low word  ==> must be one  */
+    return Ctl;
+}
+
 BOOLEAN
 VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
 {
@@ -71,55 +81,40 @@ VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
         return FALSE;
     }
 
+    guest_rip += 5 * 3;  // ¿ç¹ýmov, mov, call VmcsInit
     KdPrint(("[HyperVisor] exceptionMask : 0x%x, RSP:%p, RIP:%p \n", m_exceptionMask, guest_rsp, guest_rip));
 
+    __writecr4(__readcr4() | CR4_VMXE);
     VMCS_revision_id = __readmsr(IA32_VMX_BASIC_MSR_CODE) & 0xffffffff;
     *(PULONG_PTR)(g_guestState.VMCS)  = VMCS_revision_id;
     *(PULONG_PTR)(g_guestState.VMXON) = VMCS_revision_id;
     KdPrint(("[HyperVisor] VMCS_revision_id : 0x%x\n", VMCS_revision_id));
 
-    VmExit_funcs_init();
-
-    __cli();
-    __writecr0(g_guestState.CR0);
-    __writecr4(g_guestState.CR4);
-    __sti();
-
     addr = MmGetPhysicalAddress(g_guestState.VMXON);
-	status = __vmx_on(&addr);
+	status = __vmx_on(&addr);       if (status) return FALSE;
+
+    VmExit_funcs_init();
+    //=================================================================
 
     addr = MmGetPhysicalAddress(g_guestState.VMCS);
-	status = __vmx_vmclear(&addr);
-	status = __vmx_vmptrld(&addr);
+	status = __vmx_vmclear(&addr);  if (status) return FALSE;
+	status = __vmx_vmptrld(&addr);  if (status) return FALSE;
+
+    /*64BIT Control Fields. */
+    __vmx_vmwrite (VMX_VMCS_CTRL_TSC_OFFSET_FULL, 0);
+    __vmx_vmwrite (VMX_VMCS_CTRL_TSC_OFFSET_HIGH, 0);
+
+    //GUEST
+    status = __vmx_vmwrite(VMX_VMCS_GUEST_LINK_PTR_FULL, 0xffffffff);
+    status = __vmx_vmwrite(VMX_VMCS_GUEST_LINK_PTR_HIGH, 0xffffffff);
+
+    status = __vmx_vmwrite(VMX_VMCS_GUEST_DEBUGCTL_FULL, __readmsr(IA32_DEBUGCTL) & 0xffffffff); if (status) return FALSE;
+    status = __vmx_vmwrite(VMX_VMCS_GUEST_DEBUGCTL_HIGH, __readmsr(IA32_DEBUGCTL) >> 32);        if (status) return FALSE;
 
 	//GLOBALS
-	status = __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_MSR_LOAD_COUNT, 0);  if (status) return FALSE;
-	status = __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_MSR_LOAD_COUNT,  0);  if (status) return FALSE;
-	status = __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_MSR_STORE_COUNT, 0);  if (status) return FALSE;
-
-	if (SetCRx())          return FALSE;
-	if (SetControls())     return FALSE;
-	if (SetDT())           return FALSE;
-	if (SetSysCall())      return FALSE;
-    if (SetSegSelectors()) return FALSE;
-
-	//GUEST
-	status = __vmx_vmwrite(VMX_VMCS_GUEST_LINK_PTR_FULL, -1);  if (status) return FALSE;
-	status = __vmx_vmwrite(VMX_VMCS_GUEST_LINK_PTR_HIGH, -1);  if (status) return FALSE;
-
-	status = __vmx_vmwrite(VMX_VMCS_GUEST_DEBUGCTL_FULL, __readmsr(IA32_DEBUGCTL));        if (status) return FALSE;
-	status = __vmx_vmwrite(VMX_VMCS_GUEST_DEBUGCTL_HIGH, __readmsr(IA32_DEBUGCTL) >> 32);  if (status) return FALSE;
-
-    status = __vmx_vmwrite(VMX_VMCS64_GUEST_RSP, guest_rsp);             if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS64_GUEST_RIP, guest_rip);             if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS_GUEST_RFLAGS, g_guestState.RFLAGS);  if (status) return FALSE;
-
-	status = __vmx_vmwrite(VMX_VMCS_HOST_RSP, (ULONG_PTR)g_guestState.hvStack + PAGE_SIZE - 1);  if (status) return FALSE;
-	status = __vmx_vmwrite(VMX_VMCS_HOST_RIP, hv_exit);                  if (status) return FALSE;
-
-	if (m_exceptionMask)
-	{
-		ULONG_PTR val_state;
+    if (m_exceptionMask)
+    {
+        ULONG_PTR val_state;
         ULONG_PTR exception_Bitmap;
 
         status = __vmx_vmread(VMX_VMCS32_GUEST_INTERRUPTIBILITY_STATE, &val_state);      if (status)  return FALSE;
@@ -134,18 +129,41 @@ VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
 
         exception_Bitmap |= m_exceptionMask;
         status = __vmx_vmwrite(VMX_VMCS_CTRL_EXCEPTION_BITMAP, exception_Bitmap);        if (status)  return FALSE;
-	}
+    }
 
-	//handle pagefault via VMX_EXIT_EPT_VIOLATION
+    status = __vmx_vmwrite(VMX_VMCS_CTRL_PIN_EXEC_CONTROLS,  VmxAdjustControls (0, IA32_VMX_PINBASED_CTLS));  if (status) return FALSE;
+    status = __vmx_vmwrite(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, VmxAdjustControls (0, IA32_VMX_PROCBASED_CTLS)); if (status) return FALSE;
+    status = __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_CONTROLS,
+        VmxAdjustControls (VMX_VMCS32_EXIT_IA32E_MODE | VMX_VMCS32_EXIT_ACK_ITR_ON_EXIT, IA32_VMX_EXIT_CTLS));  if (status) return FALSE;
+    status = __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_CONTROLS, VmxAdjustControls (0, IA32_VMX_ENTRY_CTLS)); if (status) return FALSE;
+
+    __vmx_vmwrite (VMX_VMCS_CTRL_PAGEFAULT_ERROR_MASK,  0);
+    __vmx_vmwrite (VMX_VMCS_CTRL_PAGEFAULT_ERROR_MATCH, 0);
+    __vmx_vmwrite (VMX_VMCS_CTRL_CR3_TARGET_COUNT,      0);
+
+    status = __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_MSR_STORE_COUNT, 0);  if (status) return FALSE;
+    status = __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_MSR_LOAD_COUNT,  0);  if (status) return FALSE;
+    status = __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_MSR_LOAD_COUNT, 0);  if (status) return FALSE;
+    status = __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_IRQ_INFO,       0);  if (status) return FALSE;
+
+	if (SetCRx())          return FALSE;
+	if (SetDT())           return FALSE;
+	if (SetSysCall())      return FALSE;
+    if (SetSegSelectors()) return FALSE;
+
+    //handle pagefault via VMX_EXIT_EPT_VIOLATION
 	/*
 	VMWRITE_ERR_QUIT(VMX_VMCS_CTRL_EPTP_FULL, m_guestState.CR3 | VMX_EPT_MEMTYPE_WB | \
                     (VMX_EPT_PAGE_WALK_LENGTH_DEFAULT << VMX_EPT_PAGE_WALK_LENGTH_SHIFT));
 	VMWRITE_ERR_QUIT(VMX_VMCS_CTRL_EPTP_HIGH, m_guestState.CR3 >> 32);
 	*/
 
-	DbgPrint("\ncr0 %p", g_guestState.CR0);	
-	DbgPrint("\ncr3 %p", g_guestState.CR3);
-	DbgPrint("\ncr4 %p", g_guestState.CR4);
+    status = __vmx_vmwrite(VMX_VMCS64_GUEST_RSP, guest_rsp);            if (status) return FALSE;
+    status = __vmx_vmwrite(VMX_VMCS64_GUEST_RIP, guest_rip);            if (status) return FALSE;
+    status = __vmx_vmwrite(VMX_VMCS_GUEST_RFLAGS, g_guestState.RFLAGS); if (status) return FALSE;
+
+	status = __vmx_vmwrite(VMX_VMCS_HOST_RSP, (ULONG_PTR)g_guestState.hvStack + PAGE_SIZE - 1);  if (status) return FALSE;
+	status = __vmx_vmwrite(VMX_VMCS_HOST_RIP, hv_exit);                 if (status) return FALSE;
 
 	//descriptor tables
 	DbgPrint("\nidtr base %p",  g_guestState.Idtr.base);
@@ -189,17 +207,6 @@ SetCRx()  // done!
 	status = __vmx_vmwrite(VMX_VMCS_HOST_CR3, g_guestState.CR3);    if (status) return status;
 	status = __vmx_vmwrite(VMX_VMCS_HOST_CR4, g_guestState.CR4);    if (status) return status;
 
-	return status;
-}
-
-UCHAR 
-SetControls()  // done!
-{
-	UCHAR status;
-	status = __vmx_vmwrite(VMX_VMCS_CTRL_PIN_EXEC_CONTROLS,  g_guestState.PIN);   if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, g_guestState.PROC);  if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_CONTROLS,      g_guestState.EXIT);  if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_CONTROLS,     g_guestState.ENTRY); if (status) return status;
 	return status;
 }
 
