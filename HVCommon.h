@@ -13,7 +13,24 @@ typedef struct _GATE_DESCRIPTOR
 	ULONG Reserved;
 } GATE_DESCRIPTOR;
 
-typedef struct SEGMENT_DESCRIPTOR
+typedef struct
+{
+    USHORT LimitLow;
+    USHORT BaseLow;
+    UCHAR BaseMid;
+    UCHAR AttributesLow;
+    union {
+        UCHAR limit1attr1;
+        struct
+        {
+            UCHAR LimitHigh      : 4;
+            UCHAR AttributesHigh : 4;
+        };
+    };
+    UCHAR BaseHigh;
+} SEGMENT_DESCRIPTOR, *PSEGMENT_DESCRIPTOR;
+
+typedef struct _SEGMENT_DESCRIPTOR
 {
 	ULONG_PTR LimitLow       : 16;
 	ULONG_PTR BaseLow        : 16;
@@ -82,10 +99,6 @@ typedef struct _GUEST_STATE
     GDT Gdtr;
     GDT Idtr;
     //
-    ULONG_PTR PIN;
-    ULONG_PTR PROC;
-    ULONG_PTR EXIT;
-    ULONG_PTR ENTRY;
     ULONG_PTR SEIP;
     ULONG_PTR SESP;
     //

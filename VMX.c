@@ -28,10 +28,6 @@ GetGuestState()  // done!
     __sgdt(&(g_guestState.Gdtr));
     __sidt(&(g_guestState.Idtr));
 
-    g_guestState.PIN   = __readmsr(IA32_VMX_PINBASED_CTLS);
-    g_guestState.PROC  = __readmsr(IA32_VMX_PROCBASED_CTLS) | CPU_BASED_RDTSC_EXITING;  // RDTSC 测试指令周期和时间
-    g_guestState.EXIT  = __readmsr(IA32_VMX_EXIT_CTLS)  | VMX_VMCS32_EXIT_IA32E_MODE | VMX_VMCS32_EXIT_ACK_ITR_ON_EXIT;
-    g_guestState.ENTRY = __readmsr(IA32_VMX_ENTRY_CTLS) | VMX_VMCS32_ENTRY_IA32E_MODE;
     g_guestState.SEIP  = __readmsr(IA64_SYSENTER_EIP);
     g_guestState.SESP  = __readmsr(IA32_SYSENTER_ESP);
 
@@ -65,7 +61,6 @@ VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
     UCHAR status;
     PHYSICAL_ADDRESS addr;
     //
-    ULONG_PTR m_exceptionMask = 0;
     ULONG_PTR VMCS_revision_id;
 
     // 检查IA32_FEATURE_CONTROL寄存器的两个Lock位
@@ -82,7 +77,7 @@ VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
     }
 
     guest_rip += 5 * 3;  // 跨过mov, mov, call VmcsInit
-    KdPrint(("[HyperVisor] exceptionMask : 0x%x, RSP:%p, RIP:%p \n", m_exceptionMask, guest_rsp, guest_rip));
+    KdPrint(("[HyperVisor] guest RSP:%p, RIP:%p \n", guest_rsp, guest_rip));
 
     __writecr4(__readcr4() | CR4_VMXE);
     VMCS_revision_id = __readmsr(IA32_VMX_BASIC_MSR_CODE) & 0xffffffff;
@@ -101,8 +96,8 @@ VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
 	status = __vmx_vmptrld(&addr);  if (status) return FALSE;
 
     /*64BIT Control Fields. */
-    __vmx_vmwrite (VMX_VMCS_CTRL_TSC_OFFSET_FULL, 0);
-    __vmx_vmwrite (VMX_VMCS_CTRL_TSC_OFFSET_HIGH, 0);
+//     __vmx_vmwrite (VMX_VMCS_CTRL_TSC_OFFSET_FULL, 0);
+//     __vmx_vmwrite (VMX_VMCS_CTRL_TSC_OFFSET_HIGH, 0);
 
     //GUEST
     status = __vmx_vmwrite(VMX_VMCS_GUEST_LINK_PTR_FULL, 0xffffffff);
@@ -112,34 +107,15 @@ VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
     status = __vmx_vmwrite(VMX_VMCS_GUEST_DEBUGCTL_HIGH, __readmsr(IA32_DEBUGCTL) >> 32);        if (status) return FALSE;
 
 	//GLOBALS
-    if (m_exceptionMask)
-    {
-        ULONG_PTR val_state;
-        ULONG_PTR exception_Bitmap;
-
-        status = __vmx_vmread(VMX_VMCS32_GUEST_INTERRUPTIBILITY_STATE, &val_state);      if (status)  return FALSE;
-
-        if (val_state & 3)
-        {
-            val_state &= ~3;
-            status = __vmx_vmwrite(VMX_VMCS32_GUEST_INTERRUPTIBILITY_STATE, val_state);  if (status)  return FALSE;
-        }
-
-        status = __vmx_vmread(VMX_VMCS_CTRL_EXCEPTION_BITMAP, &exception_Bitmap);        if (status)  return FALSE;
-
-        exception_Bitmap |= m_exceptionMask;
-        status = __vmx_vmwrite(VMX_VMCS_CTRL_EXCEPTION_BITMAP, exception_Bitmap);        if (status)  return FALSE;
-    }
-
     status = __vmx_vmwrite(VMX_VMCS_CTRL_PIN_EXEC_CONTROLS,  VmxAdjustControls (0, IA32_VMX_PINBASED_CTLS));  if (status) return FALSE;
     status = __vmx_vmwrite(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, VmxAdjustControls (0, IA32_VMX_PROCBASED_CTLS)); if (status) return FALSE;
+    status = __vmx_vmwrite(VMX_VMCS_CTRL_EXCEPTION_BITMAP, 0);                                                if (status) return FALSE;
     status = __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_CONTROLS,
-        VmxAdjustControls (VMX_VMCS32_EXIT_IA32E_MODE | VMX_VMCS32_EXIT_ACK_ITR_ON_EXIT, IA32_VMX_EXIT_CTLS));  if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_CONTROLS, VmxAdjustControls (0, IA32_VMX_ENTRY_CTLS)); if (status) return FALSE;
+        VmxAdjustControls(VMX_VMCS32_EXIT_IA32E_MODE | VMX_VMCS32_EXIT_ACK_ITR_ON_EXIT, IA32_VMX_EXIT_CTLS)); if (status) return FALSE;
+    status = __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_CONTROLS,     VmxAdjustControls (0, IA32_VMX_ENTRY_CTLS));     if (status) return FALSE;
 
     __vmx_vmwrite (VMX_VMCS_CTRL_PAGEFAULT_ERROR_MASK,  0);
     __vmx_vmwrite (VMX_VMCS_CTRL_PAGEFAULT_ERROR_MATCH, 0);
-    __vmx_vmwrite (VMX_VMCS_CTRL_CR3_TARGET_COUNT,      0);
 
     status = __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_MSR_STORE_COUNT, 0);  if (status) return FALSE;
     status = __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_MSR_LOAD_COUNT,  0);  if (status) return FALSE;
@@ -216,10 +192,10 @@ SetDT()  // done!
 	UCHAR status;
     SEGMENT_SELECTOR seg_sel;
 
+    status = __vmx_vmwrite(VMX_VMCS64_GUEST_GDTR_BASE,  g_guestState.Gdtr.base);  if (status) return status;
+    status = __vmx_vmwrite(VMX_VMCS32_GUEST_GDTR_LIMIT, g_guestState.Gdtr.limit); if (status) return status;
 	status = __vmx_vmwrite(VMX_VMCS64_GUEST_IDTR_BASE,  g_guestState.Idtr.base);  if (status) return status;
 	status = __vmx_vmwrite(VMX_VMCS32_GUEST_IDTR_LIMIT, g_guestState.Idtr.limit); if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS64_GUEST_GDTR_BASE,  g_guestState.Gdtr.base);  if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS32_GUEST_GDTR_LIMIT, g_guestState.Gdtr.limit); if (status) return status;
 	
 	GetSegmentDescriptor((SEGMENT_SELECTOR *)&seg_sel, g_guestState.Tr);
 	status = __vmx_vmwrite(VMX_VMCS_HOST_TR_BASE, seg_sel.base);             if (status) return status;
@@ -269,8 +245,8 @@ GetSegmentDescriptor(  // done!
     RtlZeroMemory(segSel, sizeof(SEGMENT_SELECTOR));
 
 	segSel->selector = selector;
-	segSel->limit =	(ULONG)(seg->LimitLow | (seg->LimitHigh << 16));
-	segSel->base = seg->BaseLow | (seg->BaseMid << 16) | (seg->BaseHigh << 24);
+	segSel->limit    = (ULONG)(seg->LimitLow | seg->LimitHigh << 16);
+	segSel->base     = seg->BaseLow | seg->BaseMid << 16 | seg->BaseHigh << 24;
 	segSel->attributes = (USHORT)(seg->AttributesLow | (seg->AttributesHigh << 8));
 
 	//is TSS or HV_CALLBACK ?
