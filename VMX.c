@@ -247,14 +247,15 @@ GetSegmentDescriptor(  // done!
 	segSel->selector = selector;
 	segSel->limit    = (ULONG)(seg->LimitLow | seg->LimitHigh << 16);
 	segSel->base     = seg->BaseLow | seg->BaseMid << 16 | seg->BaseHigh << 24;
-	segSel->attributes = (USHORT)(seg->AttributesLow | (seg->AttributesHigh << 8));
+	segSel->attributes = (USHORT)(seg->AttributesLow | seg->AttributesHigh << 8);
+	
+	if (!(seg->AttributesLow & NORMAL))  // is TSS or HV_CALLBACK ? Yes save the base high part
+		segSel->base |= ((*(PULONG64) ((PUCHAR)seg + 8)) << 32);
 
-	//is TSS or HV_CALLBACK ?
-	if (!(seg->AttributesLow & NORMAL))
-		segSel->base = segSel->base | ((*(PULONG64) ((PUCHAR)seg + 8)) << 32);
+#define	IS_GRANULARITY_4KB  (1 << 0xB)
 
-	if (segSel->attributes >> IS_GRANULARITY_4KB == 1)
-		segSel->limit = (segSel->limit << 12) | 0xFFFF;
+	if (segSel->attributes & IS_GRANULARITY_4KB)
+		segSel->limit = (segSel->limit << 12) | 0xFFF;
 
 	segSel->rights =
         (segSel->selector ? (((PUCHAR) &segSel->attributes)[0] + (((PUCHAR) &segSel->attributes)[1] << 12)) : 0x10000);

@@ -113,7 +113,6 @@ typedef struct _GUEST_STATE
 #define SEG_DATA				0x18
 
 #define NORMAL					0x10
-#define	IS_GRANULARITY_4KB		0xB
 
 #define BTS(b)					(1i64 << b)
 #define CR4_VMXE				BTS(13)
