@@ -13,7 +13,9 @@ GetGuestState()  // done!
     PHYSICAL_ADDRESS HighestAcceptableAddress;
     HighestAcceptableAddress.QuadPart = 0xFFFFFFFF00000000;
 
+    g_guestState.CR0 = __readcr0();
     g_guestState.CR3 = __readcr3();
+    g_guestState.CR4 = __readcr4();
     g_guestState.RFLAGS = __readeflags();
 
     g_guestState.Cs = __readcs();
@@ -55,6 +57,39 @@ ULONG32 VmxAdjustControls (
     return Ctl;
 }
 
+void
+SetCRx()
+{
+    __vmx_vmwrite(VMX_VMCS_CTRL_CR4_MASK, X86_CR4_VMXE);
+    __vmx_vmwrite(VMX_VMCS_CTRL_CR4_READ_SHADOW, 0);
+
+    __vmx_vmwrite(VMX_VMCS64_GUEST_CR0, g_guestState.CR0);
+    __vmx_vmwrite(VMX_VMCS64_GUEST_CR3, g_guestState.CR3);
+    __vmx_vmwrite(VMX_VMCS64_GUEST_CR4, g_guestState.CR4);
+    //
+    __vmx_vmwrite(VMX_VMCS64_GUEST_DR7, 0x400 );
+
+    __vmx_vmwrite(VMX_VMCS_HOST_CR0, g_guestState.CR0);
+    __vmx_vmwrite(VMX_VMCS_HOST_CR3, g_guestState.CR3);
+    __vmx_vmwrite(VMX_VMCS_HOST_CR4, g_guestState.CR4);
+}
+
+void
+SetDT()
+{
+    SEGMENT_SELECTOR seg_sel;
+
+    __vmx_vmwrite(VMX_VMCS64_GUEST_GDTR_BASE,  g_guestState.Gdtr.base);
+    __vmx_vmwrite(VMX_VMCS32_GUEST_GDTR_LIMIT, g_guestState.Gdtr.limit);
+    __vmx_vmwrite(VMX_VMCS64_GUEST_IDTR_BASE,  g_guestState.Idtr.base);
+    __vmx_vmwrite(VMX_VMCS32_GUEST_IDTR_LIMIT, g_guestState.Idtr.limit);
+
+    GetSegmentDescriptor((SEGMENT_SELECTOR *)&seg_sel, g_guestState.Tr);
+    __vmx_vmwrite(VMX_VMCS_HOST_TR_BASE, seg_sel.base);
+    __vmx_vmwrite(VMX_VMCS_HOST_GDTR_BASE, g_guestState.Gdtr.base);  // Fix
+    __vmx_vmwrite(VMX_VMCS_HOST_IDTR_BASE, g_guestState.Idtr.base);  // Fix
+}
+
 BOOLEAN
 VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
 {
@@ -63,14 +98,15 @@ VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
     //
     ULONG_PTR VMCS_revision_id;
 
-    // 检查IA32_FEATURE_CONTROL寄存器的两个Lock位
+    // 检查IA32_FEATURE_CONTROL寄存器的Lock位
     if (!(__readmsr(IA32_FEATURE_CONTROL_CODE) & FEATURE_CONTROL_LOCKED))
     {
         KdPrint(("[HyperVisor] IA32_FEATURE_CONTROL bit[0] = 0!\n"));
         return FALSE;
     }
 
-	if (!(__readmsr(IA32_FEATURE_CONTROL_CODE) & FEATURE_CONTROL_VMXON_ENABLED))
+    // 检查IA32_FEATURE_CONTROL寄存器的Enable VMX outside SMX位
+    if (!(__readmsr(IA32_FEATURE_CONTROL_CODE) & FEATURE_CONTROL_VMXON_ENABLED))
     {
         KdPrint(("[HyperVisor] IA32_FEATURE_CONTROL bit[2] = 0!\n"));
         return FALSE;
@@ -79,7 +115,8 @@ VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
     guest_rip += 5 * 3;  // 跨过mov, mov, call VmcsInit
     KdPrint(("[HyperVisor] guest RSP:%p, RIP:%p \n", guest_rsp, guest_rip));
 
-    __writecr4(__readcr4() | CR4_VMXE);
+    VmExit_funcs_init();
+    __writecr4(g_guestState.CR4 | CR4_VMXE);  // 设置CR4_VMXE
     VMCS_revision_id = __readmsr(IA32_VMX_BASIC_MSR_CODE) & 0xffffffff;
     *(PULONG_PTR)(g_guestState.VMCS)  = VMCS_revision_id;
     *(PULONG_PTR)(g_guestState.VMXON) = VMCS_revision_id;
@@ -88,58 +125,41 @@ VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
     addr = MmGetPhysicalAddress(g_guestState.VMXON);
 	status = __vmx_on(&addr);       if (status) return FALSE;
 
-    VmExit_funcs_init();
-    //=================================================================
-
     addr = MmGetPhysicalAddress(g_guestState.VMCS);
 	status = __vmx_vmclear(&addr);  if (status) return FALSE;
 	status = __vmx_vmptrld(&addr);  if (status) return FALSE;
 
-    /*64BIT Control Fields. */
-//     __vmx_vmwrite (VMX_VMCS_CTRL_TSC_OFFSET_FULL, 0);
-//     __vmx_vmwrite (VMX_VMCS_CTRL_TSC_OFFSET_HIGH, 0);
-
     //GUEST
-    status = __vmx_vmwrite(VMX_VMCS_GUEST_LINK_PTR_FULL, 0xffffffff);
-    status = __vmx_vmwrite(VMX_VMCS_GUEST_LINK_PTR_HIGH, 0xffffffff);
-
-    status = __vmx_vmwrite(VMX_VMCS_GUEST_DEBUGCTL_FULL, __readmsr(IA32_DEBUGCTL) & 0xffffffff); if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS_GUEST_DEBUGCTL_HIGH, __readmsr(IA32_DEBUGCTL) >> 32);        if (status) return FALSE;
+    __vmx_vmwrite(VMX_VMCS_GUEST_LINK_PTR_FULL, 0xffffffff);
+    __vmx_vmwrite(VMX_VMCS_GUEST_LINK_PTR_HIGH, 0xffffffff);
 
 	//GLOBALS
-    status = __vmx_vmwrite(VMX_VMCS_CTRL_PIN_EXEC_CONTROLS,  VmxAdjustControls (0, IA32_VMX_PINBASED_CTLS));  if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, VmxAdjustControls (0, IA32_VMX_PROCBASED_CTLS)); if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS_CTRL_EXCEPTION_BITMAP, 0);                                                if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_CONTROLS,
-        VmxAdjustControls(VMX_VMCS32_EXIT_IA32E_MODE | VMX_VMCS32_EXIT_ACK_ITR_ON_EXIT, IA32_VMX_EXIT_CTLS)); if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_CONTROLS,     VmxAdjustControls (0, IA32_VMX_ENTRY_CTLS));     if (status) return FALSE;
+    __vmx_vmwrite(VMX_VMCS_CTRL_PIN_EXEC_CONTROLS,  VmxAdjustControls (0, IA32_VMX_PINBASED_CTLS));
+    __vmx_vmwrite(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, VmxAdjustControls (0, IA32_VMX_PROCBASED_CTLS));
+    __vmx_vmwrite(VMX_VMCS_CTRL_EXCEPTION_BITMAP, 0);
+    __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_CONTROLS,
+                           VmxAdjustControls( VMX_VMCS32_EXIT_ACK_ITR_ON_EXIT | VMX_VMCS32_EXIT_IA32E_MODE, IA32_VMX_EXIT_CTLS));
+    __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_CONTROLS,     VmxAdjustControls (VMX_VMCS32_EXIT_IA32E_MODE, IA32_VMX_ENTRY_CTLS));
 
-    __vmx_vmwrite (VMX_VMCS_CTRL_PAGEFAULT_ERROR_MASK,  0);
-    __vmx_vmwrite (VMX_VMCS_CTRL_PAGEFAULT_ERROR_MATCH, 0);
+    __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_MSR_STORE_COUNT, 0);
+    __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_MSR_LOAD_COUNT,  0);
+    __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_MSR_LOAD_COUNT, 0);
+    __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_IRQ_INFO,       0);
 
-    status = __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_MSR_STORE_COUNT, 0);  if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_MSR_LOAD_COUNT,  0);  if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_MSR_LOAD_COUNT, 0);  if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_IRQ_INFO,       0);  if (status) return FALSE;
+    __vmx_vmwrite (VMX_VMCS32_GUEST_INTERRUPTIBILITY_STATE, 0);   // 指示当前有STI阻塞状态
+    __vmx_vmwrite (VMX_VMCS32_GUEST_ACTIVITY_STATE,         0);   // 处于正常执行指令状态 
 
-	if (SetCRx())          return FALSE;
-	if (SetDT())           return FALSE;
+	SetCRx();
+	SetDT();
 	if (SetSysCall())      return FALSE;
     if (SetSegSelectors()) return FALSE;
 
-    //handle pagefault via VMX_EXIT_EPT_VIOLATION
-	/*
-	VMWRITE_ERR_QUIT(VMX_VMCS_CTRL_EPTP_FULL, m_guestState.CR3 | VMX_EPT_MEMTYPE_WB | \
-                    (VMX_EPT_PAGE_WALK_LENGTH_DEFAULT << VMX_EPT_PAGE_WALK_LENGTH_SHIFT));
-	VMWRITE_ERR_QUIT(VMX_VMCS_CTRL_EPTP_HIGH, m_guestState.CR3 >> 32);
-	*/
+    __vmx_vmwrite(VMX_VMCS64_GUEST_RSP, guest_rsp);
+    __vmx_vmwrite(VMX_VMCS64_GUEST_RIP, guest_rip);
+    __vmx_vmwrite(VMX_VMCS_GUEST_RFLAGS, g_guestState.RFLAGS);
 
-    status = __vmx_vmwrite(VMX_VMCS64_GUEST_RSP, guest_rsp);            if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS64_GUEST_RIP, guest_rip);            if (status) return FALSE;
-    status = __vmx_vmwrite(VMX_VMCS_GUEST_RFLAGS, g_guestState.RFLAGS); if (status) return FALSE;
-
-	status = __vmx_vmwrite(VMX_VMCS_HOST_RSP, (ULONG_PTR)g_guestState.hvStack + PAGE_SIZE - 1);  if (status) return FALSE;
-	status = __vmx_vmwrite(VMX_VMCS_HOST_RIP, hv_exit);                 if (status) return FALSE;
+	__vmx_vmwrite(VMX_VMCS_HOST_RSP, (ULONG_PTR)g_guestState.hvStack + PAGE_SIZE - 1);
+	__vmx_vmwrite(VMX_VMCS_HOST_RIP, hv_exit);
 
 	//descriptor tables
 	DbgPrint("\nidtr base %p",  g_guestState.Idtr.base);
@@ -157,51 +177,11 @@ VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
 	DbgPrint("\nldtr %p", g_guestState.Ldtr);
 	DbgPrint("\ntr  %p", g_guestState.Tr);
 
-	status = __vmx_vmlaunch();
+	__vmx_vmlaunch();
 
 	DbgPrint("[HyperVisor] vmlaunch failed!\n");
 	__debugbreak();
 	return FALSE;
-}
-
-UCHAR
-SetCRx()  // done!
-{
-	UCHAR status;
-	status = __vmx_vmwrite(VMX_VMCS_CTRL_CR0_READ_SHADOW, CR0_PG);  if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS_CTRL_CR4_READ_SHADOW,  0);      if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS_CTRL_CR3_TARGET_COUNT, 0);      if (status) return status;
-
-	//CR GUEST
-	status = __vmx_vmwrite(VMX_VMCS64_GUEST_CR0, g_guestState.CR0); if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS64_GUEST_CR3, g_guestState.CR3); if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS64_GUEST_CR4, g_guestState.CR4); if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS64_GUEST_DR7, 0x400 | DR7_GD);   if (status) return status;
-
-	//CR HOST
-	status = __vmx_vmwrite(VMX_VMCS_HOST_CR0, g_guestState.CR0);    if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS_HOST_CR3, g_guestState.CR3);    if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS_HOST_CR4, g_guestState.CR4);    if (status) return status;
-
-	return status;
-}
-
-UCHAR 
-SetDT()  // done!
-{
-	UCHAR status;
-    SEGMENT_SELECTOR seg_sel;
-
-    status = __vmx_vmwrite(VMX_VMCS64_GUEST_GDTR_BASE,  g_guestState.Gdtr.base);  if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS32_GUEST_GDTR_LIMIT, g_guestState.Gdtr.limit); if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS64_GUEST_IDTR_BASE,  g_guestState.Idtr.base);  if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS32_GUEST_IDTR_LIMIT, g_guestState.Idtr.limit); if (status) return status;
-	
-	GetSegmentDescriptor((SEGMENT_SELECTOR *)&seg_sel, g_guestState.Tr);
-	status = __vmx_vmwrite(VMX_VMCS_HOST_TR_BASE, seg_sel.base);             if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS_HOST_GDTR_BASE, g_guestState.Gdtr.base); if (status) return status;
-	status = __vmx_vmwrite(VMX_VMCS_HOST_IDTR_BASE, g_guestState.Idtr.base); if (status) return status;
-	return status;
 }
 
 typedef struct _CS_STAR
@@ -242,7 +222,6 @@ GetSegmentDescriptor(  // done!
 	)
 {
 	SEGMENT_DESCRIPTOR* seg = (SEGMENT_DESCRIPTOR *)((PUCHAR)g_guestState.Gdtr.base + (selector >> 3) * 8);
-    RtlZeroMemory(segSel, sizeof(SEGMENT_SELECTOR));
 
 	segSel->selector = selector;
 	segSel->limit    = (ULONG)(seg->LimitLow | seg->LimitHigh << 16);

@@ -36,10 +36,4 @@ UCHAR
 SetSegSelectors();
 
 UCHAR
-SetCRx();
-
-UCHAR
-SetDT();
-
-UCHAR
 SetSysCall();

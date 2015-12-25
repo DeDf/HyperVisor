@@ -13,23 +13,6 @@ typedef struct _GATE_DESCRIPTOR
 	ULONG Reserved;
 } GATE_DESCRIPTOR;
 
-typedef struct
-{
-    USHORT LimitLow;
-    USHORT BaseLow;
-    UCHAR BaseMid;
-    UCHAR AttributesLow;
-    union {
-        UCHAR limit1attr1;
-        struct
-        {
-            UCHAR LimitHigh      : 4;
-            UCHAR AttributesHigh : 4;
-        };
-    };
-    UCHAR BaseHigh;
-} SEGMENT_DESCRIPTOR, *PSEGMENT_DESCRIPTOR;
-
 typedef struct _SEGMENT_DESCRIPTOR
 {
 	ULONG_PTR LimitLow       : 16;
@@ -83,7 +66,9 @@ typedef struct _GUEST_STATE
 	void* VMCS;
     void* hvStack;
     //
+    ULONG_PTR CR0;
     ULONG_PTR CR3;
+    ULONG_PTR CR4;
     //
     ULONG_PTR RFLAGS;
     //
