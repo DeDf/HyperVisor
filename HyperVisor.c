@@ -113,7 +113,7 @@ fakeRDMSR(
     ULONG_PTR syscall;
     if (IA64_SYSENTER_EIP == reg[RCX])
     {
-        syscall = g_guestState.SEIP;
+        syscall = g_GuestState.SEIP;
     }
     else
     {

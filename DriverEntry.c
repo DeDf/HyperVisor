@@ -1,14 +1,6 @@
 #include <ntifs.h>
 #include "VMX.h"
 
-// void
-// DriverUnload(
-// 	PDRIVER_OBJECT pDriverObject
-// 	)
-// {
-// 	KdPrint(("[HyperVisor] DriverUnload~\n"));
-// }
-
 NTSTATUS
 DriverEntry(
 	PDRIVER_OBJECT pDriverObject,
@@ -28,8 +20,6 @@ DriverEntry(
         KdPrint(("[HyperVisor] No Support VMX!\n"));
         return STATUS_UNSUCCESSFUL;
     }
-
-	//pDriverObject->DriverUnload = DriverUnload;
 
     sum_cpu = KeQueryActiveProcessorCount(&ActiveProcessors);  // KeQueryActiveProcessorCount >= vista
 

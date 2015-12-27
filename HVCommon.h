@@ -84,15 +84,11 @@ typedef struct _GUEST_STATE
     GDT Gdtr;
     GDT Idtr;
     //
+    ULONG_PTR S_CS;
     ULONG_PTR SEIP;
     ULONG_PTR SESP;
     //
 } GUEST_STATE;
-
-#define QWORD_LIMIT		    0xFFFFFFFFFFFFFFFF
-#define TRAP 0x100
-
-#define HYPERVISOR_STACK_PAGE	(PAGE_SIZE * 2)
 
 #define SEG_CODE				0x10
 #define SEG_DATA				0x18
@@ -106,28 +102,6 @@ typedef struct _GUEST_STATE
 #define FEATURE_CONTROL_VMXON_ENABLED	BTS(2)
 
 #define	MAX_HV_CALLBACK			VMX_EXIT_XSETBV+2
-
-enum
-{
-	G_GS = 0,
-	G_FS,
-	G_ES,
-	G_DS,
-	G_RIP,
-	G_CS,
-	G_RFLAGS,
-	G_RSP,
-	G_SS
-};
-
-#define MAKEFOURCC(ch0, ch1, ch2, ch3)  \
-	((ULONG)(UCHAR)(ch0)        |  \
-    ((ULONG)(UCHAR)(ch1) << 8)  |  \
-	((ULONG)(UCHAR)(ch2) << 16) |  \
-    ((ULONG)(UCHAR)(ch3) << 24))
-
-#define kCpuidMark	MAKEFOURCC('P', 'I', 'L', 'L')
-#define kStackMark	MAKEFOURCC('C', 'O', 'L', 'D')
 
 //------------------------------------------------------------------
 // ****************** DEFINE PUSHAQ order of regs ******************
