@@ -7,10 +7,10 @@
 typedef struct _GATE_DESCRIPTOR
 {
 	USHORT Offset;
-	ULONG Access;
+	ULONG  Access;
 	USHORT Selector;
-	ULONG ExtendedOffset;
-	ULONG Reserved;
+	ULONG  ExtendedOffset;
+	ULONG  Reserved;
 } GATE_DESCRIPTOR;
 
 typedef struct _SEGMENT_DESCRIPTOR
@@ -31,25 +31,25 @@ typedef union
 	struct FIELDS
 	{
 		USHORT type:4;                  /* 0;  Bit 40-43 */
-		USHORT s:1;                 	/* 4;  Bit 44    */
-		USHORT dpl:2;               	/* 5;  Bit 45-46 */
-		USHORT p:1;                 	/* 7;  Bit 47    */
-		// gap!   (this will be explained later)     
-		USHORT avl:1;               	/* 8;  Bit 52 */
-		USHORT l:1;                 	/* 9;  Bit 53 */
-		USHORT db:1;                	/* 10; Bit 54 */
-		USHORT g:1;                 	/* 11; Bit 55 */
-		USHORT Gap:4;
+		USHORT s  : 1;                 	/* 4;  Bit 44    */
+		USHORT dpl: 2;               	/* 5;  Bit 45-46 */
+		USHORT p  : 1;                 	/* 7;  Bit 47    */
+		// gap!    
+		USHORT avl: 1;               	/* 8;  Bit 52 */
+		USHORT l  : 1;                 	/* 9;  Bit 53 */
+		USHORT db : 1;                	/* 10; Bit 54 */
+		USHORT g  : 1;                 	/* 11; Bit 55 */
+		USHORT Gap: 4;
 	};
 } SEGMENT_ATTRIBUTES;
 
 typedef struct _SEGMENT_SELECTOR
 {
 	ULONG_PTR selector;
-	ULONG limit;
+	ULONG     limit;
 	ULONG_PTR base;
 	ULONG_PTR rights;
-	USHORT attributes;
+	USHORT    attributes;
 } SEGMENT_SELECTOR;
 
 typedef struct _GDT

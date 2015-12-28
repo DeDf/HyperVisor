@@ -24,18 +24,3 @@ GetGuestState();
 
 BOOLEAN
 VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip);
-
-void 
-GetSegmentDescriptor(
-                     OUT SEGMENT_SELECTOR* segSel, 
-                     ULONG_PTR selector
-                     );
-
-UCHAR
-SetSegSelector(
-               ULONG_PTR segSelector,
-               ULONG_PTR segField
-               );
-
-UCHAR
-SetSegSelectors();
