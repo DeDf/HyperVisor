@@ -7,6 +7,12 @@ extern void  hv_exit();
 
 //////////////////////////////////////////////////////////////////////
 
+UCHAR vmwrite(size_t CtlCode, size_t Value)
+{
+    KdPrint(("vmwrite %llx, %llx\n", CtlCode, Value));
+    return __vmx_vmwrite(CtlCode, Value);
+}
+
 ULONG32 VmxAdjustControls (
                            ULONG32 Ctl,
                            ULONG32 Msr
@@ -61,42 +67,42 @@ GetGuestState()
 void
 SetCRx()
 {
-    __vmx_vmwrite(VMX_VMCS_CTRL_CR4_MASK, X86_CR4_VMXE);
-    __vmx_vmwrite(VMX_VMCS_CTRL_CR4_READ_SHADOW, 0);
+    vmwrite(VMX_VMCS_CTRL_CR4_MASK, X86_CR4_VMXE);
+    vmwrite(VMX_VMCS_CTRL_CR4_READ_SHADOW, 0);
 
-    __vmx_vmwrite(VMX_VMCS64_GUEST_CR0, g_GuestState.CR0);
-    __vmx_vmwrite(VMX_VMCS64_GUEST_CR3, g_GuestState.CR3);
-    __vmx_vmwrite(VMX_VMCS64_GUEST_CR4, g_GuestState.CR4);
+    vmwrite(VMX_VMCS64_GUEST_CR0, g_GuestState.CR0);
+    vmwrite(VMX_VMCS64_GUEST_CR3, g_GuestState.CR3);
+    vmwrite(VMX_VMCS64_GUEST_CR4, g_GuestState.CR4);
     //
-    __vmx_vmwrite(VMX_VMCS64_GUEST_DR7, 0x400 );
+    vmwrite(VMX_VMCS64_GUEST_DR7, 0x400 );
 
-    __vmx_vmwrite(VMX_VMCS_HOST_CR0, g_GuestState.CR0);
-    __vmx_vmwrite(VMX_VMCS_HOST_CR3, g_GuestState.CR3);
-    __vmx_vmwrite(VMX_VMCS_HOST_CR4, g_GuestState.CR4);
+    vmwrite(VMX_VMCS_HOST_CR0, g_GuestState.CR0);
+    vmwrite(VMX_VMCS_HOST_CR3, g_GuestState.CR3);
+    vmwrite(VMX_VMCS_HOST_CR4, g_GuestState.CR4);
 }
 
 void
 SetDT()
 {
-    __vmx_vmwrite(VMX_VMCS64_GUEST_GDTR_BASE,  g_GuestState.Gdtr.base);
-    __vmx_vmwrite(VMX_VMCS32_GUEST_GDTR_LIMIT, g_GuestState.Gdtr.limit);
-    __vmx_vmwrite(VMX_VMCS64_GUEST_IDTR_BASE,  g_GuestState.Idtr.base);
-    __vmx_vmwrite(VMX_VMCS32_GUEST_IDTR_LIMIT, g_GuestState.Idtr.limit);
+    vmwrite(VMX_VMCS64_GUEST_GDTR_BASE,  g_GuestState.Gdtr.base);
+    vmwrite(VMX_VMCS32_GUEST_GDTR_LIMIT, g_GuestState.Gdtr.limit);
+    vmwrite(VMX_VMCS64_GUEST_IDTR_BASE,  g_GuestState.Idtr.base);
+    vmwrite(VMX_VMCS32_GUEST_IDTR_LIMIT, g_GuestState.Idtr.limit);
     
-    __vmx_vmwrite(VMX_VMCS_HOST_GDTR_BASE, g_GuestState.Gdtr.base);
-    __vmx_vmwrite(VMX_VMCS_HOST_IDTR_BASE, g_GuestState.Idtr.base);
+    vmwrite(VMX_VMCS_HOST_GDTR_BASE, g_GuestState.Gdtr.base);
+    vmwrite(VMX_VMCS_HOST_IDTR_BASE, g_GuestState.Idtr.base);
 }
 
 void
 SetSysCall()
 {
-    __vmx_vmwrite(GUEST_SYSENTER_CS,  g_GuestState.S_CS);
-    __vmx_vmwrite(GUEST_SYSENTER_ESP, g_GuestState.SESP);
-    __vmx_vmwrite(GUEST_SYSENTER_EIP, g_GuestState.SEIP);
+    vmwrite(GUEST_SYSENTER_CS,  g_GuestState.S_CS);
+    vmwrite(GUEST_SYSENTER_ESP, g_GuestState.SESP);
+    vmwrite(GUEST_SYSENTER_EIP, g_GuestState.SEIP);
 
-    __vmx_vmwrite(HOST_SYSENTER_CS,   g_GuestState.S_CS);
-    __vmx_vmwrite(HOST_SYSENTER_EIP,  g_GuestState.SEIP);
-    __vmx_vmwrite(HOST_SYSENTER_ESP,  g_GuestState.SESP);
+    vmwrite(HOST_SYSENTER_CS,   g_GuestState.S_CS);
+    vmwrite(HOST_SYSENTER_EIP,  g_GuestState.SEIP);
+    vmwrite(HOST_SYSENTER_ESP,  g_GuestState.SESP);
 }
 
 void 
@@ -136,9 +142,9 @@ SetSegSelector(  // done!
     SEGMENT_SELECTOR seg_sel;
     GetSegmentDescriptor(&seg_sel, Selector);
 
-    status = __vmx_vmwrite(VMX_VMCS16_GUEST_FIELD_ES         + i, Selector);        if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS32_GUEST_ES_LIMIT         + i, seg_sel.limit);   if (status) return status;
-    status = __vmx_vmwrite(VMX_VMCS32_GUEST_ES_ACCESS_RIGHTS + i, seg_sel.rights);  if (status) return status;
+    status = vmwrite(VMX_VMCS16_GUEST_FIELD_ES         + i, Selector);        if (status) return status;
+    status = vmwrite(VMX_VMCS32_GUEST_ES_LIMIT         + i, seg_sel.limit);   if (status) return status;
+    status = vmwrite(VMX_VMCS32_GUEST_ES_ACCESS_RIGHTS + i, seg_sel.rights);  if (status) return status;
 
     return status;
 }
@@ -149,16 +155,16 @@ SetSegSelectors()
     SEGMENT_SELECTOR seg_sel;
 
     // GUEST
-    __vmx_vmwrite (VMX_VMCS64_GUEST_CS_BASE, 0);
-    __vmx_vmwrite (VMX_VMCS64_GUEST_DS_BASE, 0);
-    __vmx_vmwrite (VMX_VMCS64_GUEST_ES_BASE, 0);
-    __vmx_vmwrite (VMX_VMCS64_GUEST_SS_BASE, 0);
-    __vmx_vmwrite (VMX_VMCS64_GUEST_FS_BASE, __readmsr (IA32_FS_BASE));
-    __vmx_vmwrite (VMX_VMCS64_GUEST_GS_BASE, __readmsr (IA32_GS_BASE));
+    vmwrite (VMX_VMCS64_GUEST_CS_BASE, 0);
+    vmwrite (VMX_VMCS64_GUEST_DS_BASE, 0);
+    vmwrite (VMX_VMCS64_GUEST_ES_BASE, 0);
+    vmwrite (VMX_VMCS64_GUEST_SS_BASE, 0);
+    vmwrite (VMX_VMCS64_GUEST_FS_BASE, __readmsr (IA32_FS_BASE));
+    vmwrite (VMX_VMCS64_GUEST_GS_BASE, __readmsr (IA32_GS_BASE));
     GetSegmentDescriptor((SEGMENT_SELECTOR *)&seg_sel, g_GuestState.Ldtr);
-    __vmx_vmwrite (VMX_VMCS64_GUEST_LDTR_BASE, seg_sel.base);
+    vmwrite (VMX_VMCS64_GUEST_LDTR_BASE, seg_sel.base);
     GetSegmentDescriptor((SEGMENT_SELECTOR *)&seg_sel, g_GuestState.Tr);
-    __vmx_vmwrite (VMX_VMCS64_GUEST_TR_BASE, seg_sel.base);
+    vmwrite (VMX_VMCS64_GUEST_TR_BASE, seg_sel.base);
 
     SetSegSelector(g_GuestState.Cs, VMX_VMCS16_GUEST_FIELD_CS);
     SetSegSelector(g_GuestState.Ds, VMX_VMCS16_GUEST_FIELD_DS);
@@ -172,18 +178,18 @@ SetSegSelectors()
     // HOST
     // {
     // SELECTORS
-    __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_CS, SEG_CODE);
-    __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_DS, SEG_DATA);
-    __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_ES, SEG_DATA);
-    __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_SS, SEG_DATA);
-    __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_FS, g_GuestState.Fs & 0xf8);
-    __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_GS, g_GuestState.Gs & 0xf8);
-    __vmx_vmwrite(VMX_VMCS16_HOST_FIELD_TR, g_GuestState.Tr & 0xf8);
+    vmwrite(VMX_VMCS16_HOST_FIELD_CS, SEG_CODE);
+    vmwrite(VMX_VMCS16_HOST_FIELD_DS, SEG_DATA);
+    vmwrite(VMX_VMCS16_HOST_FIELD_ES, SEG_DATA);
+    vmwrite(VMX_VMCS16_HOST_FIELD_SS, SEG_DATA);
+    vmwrite(VMX_VMCS16_HOST_FIELD_FS, g_GuestState.Fs & 0xf8);
+    vmwrite(VMX_VMCS16_HOST_FIELD_GS, g_GuestState.Gs & 0xf8);
+    vmwrite(VMX_VMCS16_HOST_FIELD_TR, g_GuestState.Tr & 0xf8);
 
     // BASE
-    __vmx_vmwrite (VMX_VMCS_HOST_FS_BASE, __readmsr (IA32_FS_BASE));
-    __vmx_vmwrite (VMX_VMCS_HOST_GS_BASE, __readmsr (IA32_GS_BASE));
-    __vmx_vmwrite(VMX_VMCS_HOST_TR_BASE, seg_sel.base);
+    vmwrite (VMX_VMCS_HOST_FS_BASE, __readmsr (IA32_FS_BASE));
+    vmwrite (VMX_VMCS_HOST_GS_BASE, __readmsr (IA32_GS_BASE));
+    vmwrite(VMX_VMCS_HOST_TR_BASE, seg_sel.base);
     // }
 }
 
@@ -229,38 +235,38 @@ VmcsInit(ULONG_PTR guest_rsp, ULONG_PTR guest_rip)
 	status = __vmx_vmptrld(&addr);  if (status) return FALSE;
 
     //GUEST
-    __vmx_vmwrite(VMX_VMCS_GUEST_LINK_PTR_FULL, 0xffffffff);
-    __vmx_vmwrite(VMX_VMCS_GUEST_LINK_PTR_HIGH, 0xffffffff);
+    vmwrite(VMX_VMCS_GUEST_LINK_PTR_FULL, 0xffffffff);
+    vmwrite(VMX_VMCS_GUEST_LINK_PTR_HIGH, 0xffffffff);
 
 	//GLOBALS
-    __vmx_vmwrite(VMX_VMCS_CTRL_PIN_EXEC_CONTROLS,  VmxAdjustControls (0, IA32_VMX_PINBASED_CTLS));
-    __vmx_vmwrite(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, VmxAdjustControls (0, IA32_VMX_PROCBASED_CTLS));
-    __vmx_vmwrite(VMX_VMCS_CTRL_EXCEPTION_BITMAP, 0);
-    __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_CONTROLS,
-                           VmxAdjustControls( VMX_VMCS32_EXIT_ACK_ITR_ON_EXIT | VMX_VMCS32_EXIT_IA32E_MODE, IA32_VMX_EXIT_CTLS));
-    __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_CONTROLS,     VmxAdjustControls (VMX_VMCS32_EXIT_IA32E_MODE, IA32_VMX_ENTRY_CTLS));
+    vmwrite(VMX_VMCS_CTRL_PIN_EXEC_CONTROLS,  VmxAdjustControls (0, IA32_VMX_PINBASED_CTLS));
+    vmwrite(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, VmxAdjustControls (0, IA32_VMX_PROCBASED_CTLS));
+    vmwrite(VMX_VMCS_CTRL_EXCEPTION_BITMAP, 0);
+    vmwrite(VMX_VMCS_CTRL_EXIT_CONTROLS,
+            VmxAdjustControls( VMX_VMCS32_EXIT_ACK_ITR_ON_EXIT | VMX_VMCS32_EXIT_IA32E_MODE, IA32_VMX_EXIT_CTLS));
+    vmwrite(VMX_VMCS_CTRL_ENTRY_CONTROLS,     VmxAdjustControls (VMX_VMCS32_EXIT_IA32E_MODE, IA32_VMX_ENTRY_CTLS));
 
-    __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_MSR_STORE_COUNT, 0);
-    __vmx_vmwrite(VMX_VMCS_CTRL_EXIT_MSR_LOAD_COUNT,  0);
-    __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_MSR_LOAD_COUNT, 0);
-    __vmx_vmwrite(VMX_VMCS_CTRL_ENTRY_IRQ_INFO,       0);   // 设置注入事件的信息
-    __vmx_vmwrite(VMX_VMCS32_GUEST_ACTIVITY_STATE,    0);   // 处于正常执行指令状态 
+    vmwrite(VMX_VMCS_CTRL_EXIT_MSR_STORE_COUNT, 0);
+    vmwrite(VMX_VMCS_CTRL_EXIT_MSR_LOAD_COUNT,  0);
+    vmwrite(VMX_VMCS_CTRL_ENTRY_MSR_LOAD_COUNT, 0);
+    vmwrite(VMX_VMCS_CTRL_ENTRY_IRQ_INFO,       0);   // 设置注入事件的信息
+    vmwrite(VMX_VMCS32_GUEST_ACTIVITY_STATE,    0);   // 处于正常执行指令状态 
 
 	SetCRx();
 	SetDT();
 	SetSysCall();
     SetSegSelectors();
 
-    __vmx_vmwrite(VMX_VMCS64_GUEST_RSP, guest_rsp);
-    __vmx_vmwrite(VMX_VMCS64_GUEST_RIP, guest_rip);
-    __vmx_vmwrite(VMX_VMCS_GUEST_RFLAGS, g_GuestState.RFLAGS);
+    vmwrite(VMX_VMCS64_GUEST_RSP, guest_rsp);
+    vmwrite(VMX_VMCS64_GUEST_RIP, guest_rip);
+    vmwrite(VMX_VMCS_GUEST_RFLAGS, g_GuestState.RFLAGS);
 
-	__vmx_vmwrite(VMX_VMCS_HOST_RSP, (ULONG_PTR)g_GuestState.hvStack + PAGE_SIZE*2 - 8);
-	__vmx_vmwrite(VMX_VMCS_HOST_RIP, hv_exit);
+	vmwrite(VMX_VMCS_HOST_RSP, (ULONG_PTR)g_GuestState.hvStack + PAGE_SIZE*2 - 8);
+	vmwrite(VMX_VMCS_HOST_RIP, (ULONG_PTR)hv_exit);
 
 	__vmx_vmlaunch();
 
-	DbgPrint("[HyperVisor] vmlaunch failed!\n");
+	KdPrint(("[HyperVisor] vmlaunch failed!\n"));
 	__debugbreak();
 	return FALSE;
 }
