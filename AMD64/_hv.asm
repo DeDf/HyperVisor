@@ -40,6 +40,7 @@ __hv_wrmsr endp
 hv_exit proc
 
 	pushaq
+	mov rcx, rsp
 	call HVEntryPoint
 	popaq
 	vmresume

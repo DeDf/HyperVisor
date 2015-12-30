@@ -10,7 +10,7 @@ extern ULONG_PTR __hv_rdmsr();
 extern void __hv_wrmsr();
 
 extern void __hv_null();
-VMTrap g_VmExit_funcs[MAX_HV_CALLBACK] = {__hv_null};
+VMTrap g_VmExit_funcs[MAX_HV_CALLBACK];
 
 //////////////////////////////////////////////////////////////////////
 
@@ -19,9 +19,13 @@ void fakeRDMSR( __inout ULONG_PTR reg[REG_COUNT] );
 void VmExit_funcs_init()
 {
     static int Vmfuncs_inited = 0;
+
     if (!Vmfuncs_inited)
     {
-        Vmfuncs_inited = 1;
+        for ( ; Vmfuncs_inited < MAX_HV_CALLBACK; Vmfuncs_inited++ )
+        {
+            g_VmExit_funcs[Vmfuncs_inited] = __hv_null;
+        }
         g_VmExit_funcs[VMX_EXIT_CPUID]  = __hv_cpuid;
         g_VmExit_funcs[VMX_EXIT_INVD]   = __hv_invd;
         g_VmExit_funcs[VMX_EXIT_RDTSC]  = __hv_rdtsc;
