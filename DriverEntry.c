@@ -36,6 +36,7 @@ DriverEntry(
                 GetGuestState();
                 get_guest_exit(&guest_rsp, &guest_rip);  // 获取VmcsInit的下一条指令
                 VmcsInit(guest_rsp, guest_rip);
+                i++;
                 break;
             }
         }
